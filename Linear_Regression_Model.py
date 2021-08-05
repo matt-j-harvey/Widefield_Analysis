@@ -463,7 +463,7 @@ def create_visual_stimuli_regressors(onsets, start_window, stop_window, base_dir
     # Create Empty Design Matrix
     number_of_trials = len(onsets)
     trial_window_size = stop_window - start_window
-    visual_stimuli_regressors = np.zeros((number_of_trials, trial_window_size))
+    visual_stimuli_regressors = np.zeros((number_of_trials, trial_window_size, trial_window_size))
 
     for visual_onset_index in range(number_of_trials):
 
@@ -480,19 +480,17 @@ def create_visual_stimuli_regressors(onsets, start_window, stop_window, base_dir
         stim_duration_in_frames = closest_frame - visual_onset
         trial_relative_frame_offset = trial_relvative_frame_onset + stim_duration_in_frames
 
-        #print("Visual time onset", visual_time_onset, "Visual time offset", visual_time_offset)
-        #print("Onset: ", trial_relvative_frame_onset, "Offset: ", trial_relative_frame_offset)
+        # Create Trial Regressor Matrix
+        trial_regressor_matrix = np.zeros((trial_window_size, trial_window_size))
+        stimuli_matrix = np.identity((stim_duration_in_frames))
+        trial_regressor_matrix[trial_relvative_frame_onset:trial_relative_frame_offset, trial_relvative_frame_onset:trial_relative_frame_offset] = stimuli_matrix
 
-        # Add To Visual Design Matrix
-        visual_stimuli_regressors[visual_onset_index][trial_relvative_frame_onset:trial_relative_frame_offset] = np.ones(stim_duration_in_frames)
+        # Add Trial Matrix To Regressors
+        visual_stimuli_regressors[visual_onset_index] = trial_regressor_matrix
 
-        #plt.scatter([visual_time_onset, visual_time_offset],[1, 1])
-        #plt.plot(visual_trace)
+        #plt.imshow(visual_stimuli_regressors[visual_onset_index])
         #plt.show()
 
-    #plt.imshow(visual_design_matrix)
-    #plt.show()
-    visual_stimuli_regressors = np.reshape(visual_stimuli_regressors, (np.shape(visual_stimuli_regressors)[0], np.shape(visual_stimuli_regressors)[1], 1))
     return visual_stimuli_regressors
 
 
@@ -522,18 +520,25 @@ def create_bodycam_regressors(base_directory, onsets, save_directory, number_of_
     widefield_mousecam_dict = invert_dictionary(mousecam_widefield_matching_dict)
     selected_mousecam_frames = get_selected_mousecam_frames(selected_widefield_frames, widefield_mousecam_dict)
 
-    # Extract Selected Mousecam Frames From Video
-    #video_array = load_video_as_numpy_array(base_directory + bodycam_file, selected_mousecam_frames)
+    if not os.path.exists(save_directory + "/Mousecam_SVD_Transformed_Data.npy"):
 
-    # Perform SVD on These Frames
-    #transformed_data, components = perform_svd_on_video(video_array, number_of_components=number_of_mousecam_components)
+        # Extract Selected Mousecam Frames From Video
+        video_array = load_video_as_numpy_array(base_directory + bodycam_file, selected_mousecam_frames)
+        print("Video array shape", np.shape(video_array))
 
-    # Save The Resulting Components and Transformed Data
-    video_array = None
-    #np.save(save_directory + "/Mousecam_SVD_Transformed_Data.npy", transformed_data)
-    #np.save(save_directory + "/Mousecam_SVD_Components.npy", components)
 
-    transformed_data = np.load(save_directory + "/Mousecam_SVD_Transformed_Data.npy")
+        # Perform SVD on These Frames
+        transformed_data, components = perform_svd_on_video(video_array, number_of_components=number_of_mousecam_components)
+
+        # Save The Resulting Components and Transformed Data
+        video_array = None
+        np.save(save_directory + "/Mousecam_SVD_Transformed_Data.npy", transformed_data)
+        np.save(save_directory + "/Mousecam_SVD_Components.npy", components)
+
+
+    else:
+        print("Using Saved SVDs")
+        transformed_data = np.load(save_directory + "/Mousecam_SVD_Transformed_Data.npy")
 
     # Visualise These Components
     mousecam_components = np.load(save_directory + "/Mousecam_SVD_Components.npy")
@@ -559,7 +564,7 @@ def create_design_matrix(ai_regressors, visual_stimuli_regressors, bodycam_regre
     number_of_datapoints = number_of_trials * trial_length
 
     #Combine These Into A Single Matrix
-    design_matrix = np.concatenate([ai_regressors, visual_stimuli_regressors, bodycam_regressors], axis=2)
+    design_matrix = np.concatenate([visual_stimuli_regressors, ai_regressors, bodycam_regressors], axis=2)
     print("Design MAtrix", np.shape(design_matrix))
 
     # Reshape Design Matrix from (Trials, Timepoint, Regressors) To (Trials * Timepoints, Regressors)
@@ -584,7 +589,7 @@ def perform_regression(design_matrix, widefield_matrix, save_directory):
 
 
 
-def explore_regression(base_directory, save_directory):
+def explore_regression(base_directory, save_directory, start_window, stop_window):
 
     # Load Model
     model = joblib.load(save_directory + "/Linear_Model.pkl")
@@ -594,25 +599,60 @@ def explore_regression(base_directory, save_directory):
     print("Weights", np.shape(weights))
 
     indicies, image_height, image_width = load_mask(base_directory)
+    trial_length = stop_window - start_window
+
+    number_of_predictors = np.shape(weights)[1]
+
+    # Visual_stimuli
+    plt.ion()
+    for timepoint in range(trial_length):
+        vis_stim_map = create_image_from_data(weights[:, timepoint], image_height, image_width, indicies)
+        plt.title("Visual: " + str(timepoint))
+        plt.imshow(vis_stim_map, cmap='inferno', vmin=0)
+        plt.draw()
+        plt.pause(0.1)
+        plt.clf()
+    plt.ioff()
 
 
     # Lick = 0
-    lick_map = create_image_from_data(weights[:, 0], image_height, image_width, indicies)
+    lick_map = create_image_from_data(weights[:, trial_length], image_height, image_width, indicies)
     plt.title("Lick")
-    plt.imshow(lick_map)
+    plt.imshow(lick_map, cmap='bwr')
     plt.show()
 
     # Running = 1
-    running_map = create_image_from_data(weights[:, 1], image_height, image_width, indicies)
+    running_map = create_image_from_data(weights[:, trial_length + 1], image_height, image_width, indicies)
     plt.title("Running")
-    plt.imshow(running_map)
+    plt.imshow(running_map, cmap='bwr')
     plt.show()
 
-    # Visual_stimuli
-    vis_stim_map = create_image_from_data(weights[:, 2], image_height, image_width, indicies)
-    plt.title("Visual")
-    plt.imshow(vis_stim_map)
-    plt.show()
+    # Visualise_Video_Contributions
+    mousecam_components = np.load(save_directory + "/Mousecam_SVD_Components.npy")
+
+    mousecam_component = 0
+    for predictor in range(trial_length + 2, number_of_predictors):
+
+        figure_1 = plt.figure()
+        widefield_axis = figure_1.add_subplot(1,2,1)
+        mousecam_axis = figure_1.add_subplot(1,2,2)
+
+        # Create Regression Map
+        weight_map = create_image_from_data(weights[:,  predictor], image_height, image_width, indicies)
+
+        # Create Bodycam Image
+        bodycam_image = mousecam_components[mousecam_component]
+        bodycam_image = np.reshape(bodycam_image, (480, 640))
+
+        plt.title("Bodycam Component: " + str(mousecam_component))
+
+        widefield_axis.imshow(weight_map, cmap='bwr')
+        mousecam_axis.imshow(abs(bodycam_image), cmap='jet', vmin=0)
+        plt.show()
+
+        mousecam_component += 1
+
+
 
 
 
@@ -624,12 +664,18 @@ def explore_regression(base_directory, save_directory):
 # Perform Preperations
 
 # Settings
-base_directory = r"/media/matthew/Seagate Expansion Drive1/Widefield_Imaging/Switching_Analysis/Selected_sessions/NXAK16.1B/2021_06_23_Switching_Imaging/"
-condition = "visual_context_stable_vis_2"
+#base_directory = r"/media/matthew/Seagate Expansion Drive1/Widefield_Imaging/Switching_Analysis/Selected_sessions/NXAK16.1B/2021_06_23_Switching_Imaging/"
+#base_directory = r"/media/matthew/Seagate Expansion Drive1/Widefield_Imaging/Switching_Analysis/Selected_sessions/NXAK14.1A/2021_06_09_Switching_Imaging/"
+base_directory = r"/media/matthew/Seagate Expansion Drive1/Widefield_Imaging/Switching_Analysis/Selected_sessions/NXAK10.1A/2021_05_20_Switching_Imaging/"
+
+
+condition = "odour_context_stable_vis_2"
+#condition = "visual_context_stable_vis_2"
+
 start_window = -10
 stop_window = 100
 number_of_mousecam_components = 100
-mousecam_components_to_exclude = [2,3]
+mousecam_components_to_exclude = [3,4]
 
 # Check Linear Model Directory Exists
 linear_model_directory = base_directory + "/Linear_Model"
@@ -685,7 +731,7 @@ perform_regression(design_matrix, selected_widefield_data, save_directory)
 
 
 # Explore Regression
-explore_regression(base_directory, save_directory)
+explore_regression(base_directory, save_directory, start_window, stop_window)
 
 
 # Create Design Matrix
