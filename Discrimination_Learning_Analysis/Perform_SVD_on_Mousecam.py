@@ -152,4 +152,4 @@ components = model.components_
 
 # Save Components and Transformed Data
 np.save(save_directory + "/components.npy", components)
-np.save(save_directory + "/transformed_data.npy", transformed_data)
+np.save(save_directory + "/transformed_data.npy", transformed_data_list)
