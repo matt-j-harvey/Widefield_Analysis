@@ -6,6 +6,8 @@ from sklearn.model_selection import train_test_split
 import networkx as nx
 import cv2
 from matplotlib.pyplot import cm
+from matplotlib.colors import to_rgb
+import os
 
 def create_correlation_tensor(activity_matrix, onsets, start_window, stop_window):
 
@@ -72,7 +74,7 @@ def get_significant_changes(base_directory):
     visual_context_correlation_tensor = np.load(base_directory + "/Visual_Context_Correlation_Tensor.npy")
     odour_context_correlation_tensor = np.load(base_directory + "/Odour_Context_Correlation_Tensor.npy")
 
-    # Compute Signficant Differences
+    # Compute Significant Differences
     t_statistics, p_values = stats.ttest_ind(a=visual_context_correlation_tensor, b=odour_context_correlation_tensor, axis=0)
 
     p_value_list = np.copy(p_values)
@@ -85,10 +87,16 @@ def get_significant_changes(base_directory):
     signficance_map = np.where(p_values < 0.01, t_statistics, 0)
     print("P Vlaues", )
 
-    magnitue = np.max(np.abs(t_statistics))
     plt.imshow(signficance_map, cmap='bwr', vmin=-2, vmax=2)
     plt.show()
 
+    # Get Correlation Modulion Map
+    mean_odour_correlation_matrix = np.mean(odour_context_correlation_tensor, axis=0)
+    mean_visual_correlation_matrix = np.mean(visual_context_correlation_tensor, axis=0)
+    correlation_modulation = np.subtract(mean_visual_correlation_matrix, mean_odour_correlation_matrix)
+    correlation_modulation_map = np.where(p_values < 0.01, correlation_modulation, 0)
+
+    plot_correlation_maps(base_directory, correlation_modulation_map)
     draw_modulation_map(base_directory, np.abs(signficance_map))
     draw_brain_network(base_directory, np.abs(signficance_map))
 
@@ -229,6 +237,96 @@ def draw_modulation_map(base_directory, adjacency_matrix):
     plt.show()
 
 
+def rgba_to_rgb(rgba_value):
+
+    source_r = rgba_value[0]
+    source_g = rgba_value[1]
+    source_b = rgba_value[2]
+    source_a = rgba_value[3]
+    background_colour = [1,1,1,1]
+
+    Target_R = ((1 - source_a) * background_colour[0]) + (source_a * source_r)
+    Target_G = ((1 - source_a) * background_colour[1]) + (source_a * source_g)
+    Target_B = ((1 - source_a) * background_colour[2]) + (source_a * source_b)
+
+    return [Target_R, Target_G, Target_B]
+
+
+def plot_correlation_maps(base_directory, correlation_modulation_map):
+
+    # Downsample Mask
+    downsampled_indicies, downsampled_height, downsampled_width = downsample_mask(base_directory)
+
+    # Load Clusters
+    clusters = np.load(base_directory + "/Clusters.npy", allow_pickle=True)
+    number_of_clusters = len(clusters)
+
+    # Get  Colourmaps
+    red_colourmap = cm.get_cmap('Reds')
+    blue_colourmap = cm.get_cmap('Blues')
+    selection_colourmap = cm.get_cmap('plasma')
+
+    save_directory = base_directory + "/Correlation_Modulation_Maps/"
+    if not os.path.exists(save_directory):
+        os.mkdir(save_directory)
+
+    # Draw Brain Mask
+    for current_cluster_index in range(number_of_clusters):
+        print("Cluster: ", current_cluster_index, " of ", number_of_clusters)
+
+
+        # Create Empty Image
+        image = np.zeros((downsampled_height * downsampled_width))
+        region_image = np.zeros((downsampled_height * downsampled_width))
+
+        # Get Correlation Modulation For This Cluster
+        cluster_correlations = correlation_modulation_map[current_cluster_index]
+
+        # Iterate Through All Other Clusters
+        for other_cluster_index in range(number_of_clusters):
+
+            # Get Modulation For Other Cluster
+            correlation_modulation = cluster_correlations[other_cluster_index]
+
+            # Assign colour
+            if correlation_modulation >= 0:
+                colour = red_colourmap(correlation_modulation)
+#
+            elif correlation_modulation < 0:
+                colour = blue_colourmap(abs(correlation_modulation))
+
+            # Colour Pixels
+            other_cluster = clusters[other_cluster_index]
+            for pixel in other_cluster:
+                pixel_index = downsampled_indicies[pixel]
+                image[pixel_index] = correlation_modulation
+
+
+        # Highlight Current Cluster
+        current_cluster = clusters[current_cluster_index]
+        current_colour = selection_colourmap(255)
+
+        region_image[downsampled_indicies] = 0.3
+        for pixel in current_cluster:
+            pixel_index = downsampled_indicies[pixel]
+            region_image[pixel_index] += 1
+
+        image = np.ndarray.reshape(image, (downsampled_height, downsampled_width))
+        region_image = np.ndarray.reshape(region_image, (downsampled_height, downsampled_width))
+        #rgb_image = cv2.cvtColor(image, cv2.COLOR_RGBA2RGB)
+
+        figure_1 = plt.figure()
+        axis_1 = figure_1.add_subplot(1,2,1)
+        axis_2 = figure_1.add_subplot(1,2,2)
+
+        axis_1.imshow(region_image, cmap='Blues')
+        axis_2.imshow(image, cmap='bwr', vmin=-1, vmax=1)
+
+        plt.savefig(save_directory + str(current_cluster_index).zfill(3) + ".png")
+        plt.close()
+
+
+
 def draw_brain_network(base_directory, adjacency_matrix):
 
     # Load Cluster Centroids
@@ -257,42 +355,44 @@ def draw_brain_network(base_directory, adjacency_matrix):
 
 
 
-base_directory ="/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Switching_Analysis/Selected_sessions/NXAK4.1B/2021_03_04_Switching_Imaging/"
+#base_directory ="/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Switching_Analysis/Selected_sessions/NXAK4.1B/2021_03_04_Switching_Imaging/"
+#base_directory = "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Switching_Analysis/Selected_sessions/NXAK7.1B/2021_03_02_Switching_Imaging/"
+#base_directory = "//media/matthew/Seagate Expansion Drive/Widefield_Imaging/Switching_Analysis/Selected_sessions/NRXN78.1D/2020_11_29_Switching/"
+#base_directory = "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Switching_Analysis/Selected_sessions/NXAK14.1A/2021_06_09_Switching_Imaging/"
 
 # Load Activity Matrix
-"""
 cluster_activity_matrix_file = base_directory + "/Cluster_Activity_Matrix.npy"
 activity_matrix = np.load(cluster_activity_matrix_file)
 
 # Load Stimuli Onsets
-vis_1_odour_context_onsets  = np.load(base_directory + r"/Stimuli_Onsets/odour_context_stable_vis_1_frame_onsets.npy")
-vis_1_visual_context_onsets = np.load(base_directory + r"/Stimuli_Onsets/visual_context_stable_vis_1_frame_onsets.npy")
+#vis_1_odour_context_onsets  = np.load(base_directory + r"/Stimuli_Onsets/odour_context_stable_vis_1_frame_onsets.npy")
+#vis_1_visual_context_onsets = np.load(base_directory + r"/Stimuli_Onsets/visual_context_stable_vis_1_frame_onsets.npy")
 vis_2_odour_context_onsets  = np.load(base_directory + r"/Stimuli_Onsets/odour_context_stable_vis_2_frame_onsets.npy")
 vis_2_visual_context_onsets = np.load(base_directory + r"/Stimuli_Onsets/visual_context_stable_vis_2_frame_onsets.npy")
 
-visual_context_onsets = np.concatenate([vis_1_visual_context_onsets, vis_2_visual_context_onsets])
-odour_context_onsets = np.concatenate([vis_1_odour_context_onsets, vis_2_odour_context_onsets])
+visual_context_onsets = vis_2_visual_context_onsets
+odour_context_onsets = vis_2_odour_context_onsets
 
 # Create Correlation Tensors
 number_of_visual_context_trials = np.shape(visual_context_onsets)[0]
 number_of_odour_context_trials = np.shape(odour_context_onsets)[0]
 
-visual_context_correlation_tensor = create_correlation_tensor(activity_matrix, visual_context_onsets, -75, 0)
-odour_context_correlation_tensor = create_correlation_tensor(activity_matrix, odour_context_onsets, -75, 0)
+visual_context_correlation_tensor = create_correlation_tensor(activity_matrix, visual_context_onsets, -10, 40)
+odour_context_correlation_tensor = create_correlation_tensor(activity_matrix, odour_context_onsets, -10, 40)
 
 np.save(base_directory + "/Visual_Context_Correlation_Tensor.npy", visual_context_correlation_tensor)
 np.save(base_directory + "/Odour_Context_Correlation_Tensor.npy", odour_context_correlation_tensor)
 
-"""
-
-
-visual_context_correlation_tensor =  np.load(base_directory + "/Visual_Context_Correlation_Tensor.npy")
-odour_context_correlation_tensor = np.load(base_directory + "/Odour_Context_Correlation_Tensor.npy")
-
-# View Mean Matricies
-#plot_correlation_matirices(visual_context_correlation_tensor, odour_context_correlation_tensor)
-
-#get_significant_changes(base_directory)
-decode_context_from_correlation_matrix(base_directory)
 
 #get_cluster_centroids(base_directory)
+
+visual_context_correlation_tensor = np.load(base_directory + "/Visual_Context_Correlation_Tensor.npy")
+odour_context_correlation_tensor  = np.load(base_directory + "/Odour_Context_Correlation_Tensor.npy")
+
+# View Mean Matricies
+get_cluster_centroids(base_directory)
+plot_correlation_matirices(visual_context_correlation_tensor, odour_context_correlation_tensor)
+get_significant_changes(base_directory)
+decode_context_from_correlation_matrix(base_directory)
+
+

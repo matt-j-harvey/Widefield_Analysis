@@ -7,7 +7,9 @@ import cv2
 import sys
 from sklearn.cluster import SpectralClustering
 from sklearn.decomposition import TruncatedSVD
+from sklearn.metrics import pairwise_distances
 from matplotlib import cm
+import time
 
 sys.path.append("/home/matthew/Documents/Github_Code/Widefield_Preprocessing")
 import Widefield_General_Functions
@@ -101,11 +103,33 @@ def downsample_mask(base_directory):
     return indicies, downsampled_height, downsampled_width
 
 
-
 def compute_distance_matrix(base_directory):
 
     # Load Downsampled Data
-    downsampled_data_file = base_directory + "Downsampled_Delta_F.hdf5"
+    downsampled_data_file = base_directory + "/Downsampled_Delta_F.hdf5"
+    downsampled_file_object = h5py.File(downsampled_data_file, 'r')
+    data_matrix = downsampled_file_object["Data"]
+    data_matrix = np.array(data_matrix)
+
+    # Start Timer
+    start = time.time()
+
+    # Compute Distance Matrix
+    distance_matrix = pairwise_distances(X=data_matrix, metric='euclidean')
+
+    end = time.time()
+    print("DIstance Matrix Time: ", end - start)
+
+    # Save Distance Matrix
+    np.save(base_directory + "/Distance_matrix.npy", distance_matrix)
+
+
+
+
+def compute_distance_matrix_iteratively(base_directory):
+
+    # Load Downsampled Data
+    downsampled_data_file = base_directory + "/Downsampled_Delta_F.hdf5"
     downsampled_file_object = h5py.File(downsampled_data_file, 'r')
     data_matrix = downsampled_file_object["Data"]
     data_matrix = np.array(data_matrix)
@@ -151,21 +175,32 @@ def convert_distancce_to_simmilarity_matrix(base_directory, rbf=0.1):
 
 
 def normalise_affinity_matrix(base_directory):
+    print("Normalising Affinity Matrix")
 
     # Load matrix
     matrix = np.load(base_directory + "/Simmilarity_matrix.npy")
+    matrix = np.nan_to_num(matrix)
+    #plt.imshow(matrix, cmap='jet')
+    #plt.show()
+
 
     # Get Row Sum
     d = np.sum(matrix, axis=1)
+
+    # Invert This
+    d = 1 / d
 
     # Convert This Into A Diagonal Matrix
     d = np.diag(d)
 
     # Invert This
-    d = np.linalg.inv(d)
+    #d = np.linalg.inv(d)
+    #d = np.linalg.pinv(d)
 
     # Multiply By Original Matrix
     matrix = np.dot(d, matrix)
+
+    matrix = np.nan_to_num(matrix)
 
     # Save Output
     np.save(base_directory + "/Normalised_Affinity_Matrix.npy", matrix)
@@ -174,6 +209,7 @@ def normalise_affinity_matrix(base_directory):
 
 
 def perform_svd(base_directory, number_of_components=200):
+    print("Perofmring SVD")
 
     # Load Normalised Affinity Matrix
     matrix = np.load(base_directory + "/Normalised_Affinity_Matrix.npy")
@@ -315,10 +351,11 @@ def visualise_clusters(base_directory):
             image[pixel_index] = colour_value
 
     image = np.ndarray.reshape(image, (downsampled_height, downsampled_width))
-    plt.imshow(image, cmap='tab10')
-    plt.show()
+    plt.imshow(image, cmap='turbo') #gist_ncar
+    plt.savefig(base_directory + "/Spectral_Clusters.png")
+    plt.close()
 
-
+    """
     for cluster_index in range(number_of_clusters):
         image = np.zeros((downsampled_height * downsampled_width))
         cluster = clusters[cluster_index]
@@ -329,7 +366,7 @@ def visualise_clusters(base_directory):
         image = np.ndarray.reshape(image, (downsampled_height, downsampled_width))
         plt.imshow(image,  cmap='tab10')
         plt.show()
-
+    """
 
 
 def perform_pixel_clustering(base_directory):
@@ -356,6 +393,7 @@ def perform_pixel_clustering(base_directory):
     visualise_clusters(base_directory)
 
 
+session_list = ["/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NRXN78.1A/2020_12_09_Switching_Imaging"]
 
-base_directory ="/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Switching_Analysis/Selected_sessions/NXAK4.1B/2021_03_04_Switching_Imaging/"
-perform_pixel_clustering(base_directory)
+for session in session_list:
+    perform_pixel_clustering(session)
