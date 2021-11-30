@@ -7,51 +7,43 @@ import networkx as nx
 import cv2
 from matplotlib.pyplot import cm
 from matplotlib.colors import to_rgb
+from scipy.cluster.hierarchy import ward, dendrogram, leaves_list
+from scipy.spatial.distance import pdist
 import os
 
-def create_concatenated_correlation_matrix(tensor):
 
-    # Get Tensor Structure
-    number_of_trials = np.shape(tensor)[0]
-    number_of_timepoints = np.shape(tensor)[1]
-    number_of_clusters = np.shape(tensor)[2]
+def sort_matrix(matrix):
 
-    # Concatenate Trials
-    concatenated_tensor = np.reshape(tensor, (number_of_trials * number_of_timepoints, number_of_clusters))
-    concatenated_tensor = np.transpose(concatenated_tensor)
+    # Cluster Matrix
+    Z = ward(pdist(matrix))
 
-    # Calculate Correlation Matrix
-    correlation_matrix = np.corrcoef(concatenated_tensor)
+    # Get Dendogram Leaf Order
+    new_order = leaves_list(Z)
 
-    return correlation_matrix
+    # Sorted Matrix
+    sorted_matrix = matrix[:, new_order][new_order]
+
+    return sorted_matrix
 
 
-def get_activity_tensor(activity_matrix, onsets, start_window, stop_window):
+def jointly_sort_matricies(key_matrix, other_matricies):
 
-    # Get Tensor Details
-    number_of_clusters = np.shape(activity_matrix)[0]
-    number_of_trials = np.shape(onsets)[0]
-    number_of_timepoints = stop_window - start_window
+    # Cluster Matrix
+    Z = ward(pdist(key_matrix))
 
-    # Create Empty Tensor To Hold Data
-    trial_tensor = np.zeros((number_of_trials, number_of_timepoints, number_of_clusters))
+    # Get Dendogram Leaf Order
+    new_order = leaves_list(Z)
 
-    # Get Correlation Matrix For Each Trial
-    for trial_index in range(number_of_trials):
-        print("Trial: ", trial_index, " of ", number_of_trials)
+    # Sorted Key Matrix
+    sorted_key_matrix = key_matrix[:, new_order][new_order]
 
-        # Get Trial Activity
-        trial_start = onsets[trial_index] + start_window
-        trial_stop = onsets[trial_index] + stop_window
-        trial_activity = activity_matrix[:, trial_start:trial_stop]
+    # Sort Other Matricies
+    sorted_matrix_list = []
+    for matrix in other_matricies:
+        sorted_matrix = matrix[:, new_order][new_order]
+        sorted_matrix_list.append(sorted_matrix)
 
-        trial_activity = np.transpose(trial_activity)
-
-        print("Trial Activity Shape", np.shape(trial_activity))
-        trial_tensor[trial_index] = trial_activity
-
-    return trial_tensor
-
+    return sorted_key_matrix, sorted_matrix_list
 
 def create_correlation_tensor(activity_matrix, onsets, start_window, stop_window):
 
@@ -72,8 +64,7 @@ def create_correlation_tensor(activity_matrix, onsets, start_window, stop_window
         trial_activity = activity_matrix[:, trial_start:trial_stop]
 
         # Get Trial Correlation Matrix
-        trial_correlation_matrix = np.zeros((number_of_clusters, number_of_clusters))
-
+        trial_correlation_matrix = np.corrcoef(trial_activity)
         for cluster_1_index in range(number_of_clusters):
             cluster_1_trial_trace = trial_activity[cluster_1_index]
 
@@ -86,11 +77,6 @@ def create_correlation_tensor(activity_matrix, onsets, start_window, stop_window
                 trial_correlation_matrix[cluster_2_index][cluster_1_index] = correlation
 
         correlation_tensor[trial_index] = trial_correlation_matrix
-        #plt.imshow(trial_correlation_matrix, cmap='bwr', vmin=-1, vmax=1)
-        #plt.show()
-
-    #plt.imshow(np.mean(correlation_tensor, axis=0), cmap='bwr', vmin=-1, vmax=1)
-    #plt.show()
 
     return correlation_tensor
 
@@ -424,49 +410,72 @@ def draw_brain_network(base_directory, adjacency_matrix, session_name):
     plt.close()
 
 
-def exclude_clusters(matrix):
-
-    excluded_cluster_list = [2, 119, 156, 160, 217]
-
-    for cluster in excluded_cluster_list:
-        matrix[cluster] = 0
-        matrix[:, cluster] =0
-    return matrix
-
-def view_cluster_centroids(base_directory):
-
-    # Load Cluster Centroids
-    cluster_centroids = np.load(base_directory + "/Cluster_Centroids.npy")
-
-    # Load Clusters
-    cluster_outlines = "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/clean_clusters_outline.npy"
-    cluster_outlines = np.load(cluster_outlines)
-
-    cluster_outlines = np.flip(cluster_outlines, 0)
-
-    plt.imshow(cluster_outlines, origin='lower')
-    plt.scatter(cluster_centroids[:, 0], cluster_centroids[:, 1])
-    plt.show()
 
 
 
-def compare_pre_stimulus_correlations_concatenated(session_list):
+def create_concatenated_correlation_matrix(tensor):
+
+    # Get Tensor Structure
+    number_of_trials = np.shape(tensor)[0]
+    number_of_timepoints = np.shape(tensor)[1]
+    number_of_clusters = np.shape(tensor)[2]
+
+    # Concatenate Trials
+    concatenated_tensor = np.reshape(tensor, (number_of_trials * number_of_timepoints, number_of_clusters))
+    concatenated_tensor = np.transpose(concatenated_tensor)
+
+    # Calculate Correlation Matrix
+    correlation_matrix = np.corrcoef(concatenated_tensor)
+
+    return correlation_matrix
+
+
+
+def get_activity_tensor(activity_matrix, onsets, start_window, stop_window):
+
+    # Get Tensor Details
+    number_of_clusters = np.shape(activity_matrix)[0]
+    number_of_trials = np.shape(onsets)[0]
+    number_of_timepoints = stop_window - start_window
+
+    # Create Empty Tensor To Hold Data
+    trial_tensor = np.zeros((number_of_trials, number_of_timepoints, number_of_clusters))
+
+    # Get Correlation Matrix For Each Trial
+    for trial_index in range(number_of_trials):
+        print("Trial: ", trial_index, " of ", number_of_trials)
+
+        # Get Trial Activity
+        trial_start = onsets[trial_index] + start_window
+        trial_stop = onsets[trial_index] + stop_window
+        trial_activity = activity_matrix[:, trial_start:trial_stop]
+
+        trial_activity = np.transpose(trial_activity)
+
+        print("Trial Activity Shape", np.shape(trial_activity))
+        trial_tensor[trial_index] = trial_activity
+
+    return trial_tensor
+
+
+def compare_pre_stimulus_correlations_concatenated(session_list, display=False):
     trial_start = -70
     trial_stop = -14
 
     for base_directory in session_list:
+
+        # Get Session Name
         session_name = base_directory.split("/")[-3]
-        print(session_name)
-        # view_cluster_centroids(base_directory)
+        print("Getting Pre Stimulus Correlations For Session: " + session_name)
 
         # Load Activity Matrix
         cluster_activity_matrix_file = base_directory + "/Cluster_Activity_Matrix.npy"
         activity_matrix = np.load(cluster_activity_matrix_file)
 
         # Load Stimuli Onsets
-        vis_1_odour_context_onsets  = np.load(base_directory + r"/Stimuli_Onsets/odour_context_stable_vis_1_frame_onsets.npy")
+        vis_1_odour_context_onsets = np.load(base_directory + r"/Stimuli_Onsets/odour_context_stable_vis_1_frame_onsets.npy")
         vis_1_visual_context_onsets = np.load(base_directory + r"/Stimuli_Onsets/visual_context_stable_vis_1_frame_onsets.npy")
-        vis_2_odour_context_onsets  = np.load(base_directory + r"/Stimuli_Onsets/odour_context_stable_vis_2_frame_onsets.npy")
+        vis_2_odour_context_onsets = np.load(base_directory + r"/Stimuli_Onsets/odour_context_stable_vis_2_frame_onsets.npy")
         vis_2_visual_context_onsets = np.load(base_directory + r"/Stimuli_Onsets/visual_context_stable_vis_2_frame_onsets.npy")
 
         visual_context_onsets = np.concatenate([vis_1_visual_context_onsets, vis_2_visual_context_onsets])
@@ -474,49 +483,63 @@ def compare_pre_stimulus_correlations_concatenated(session_list):
 
         visual_context_onsets = list(visual_context_onsets)
         odour_context_onsets = list(odour_context_onsets)
+
         visual_context_onsets.sort()
         odour_context_onsets.sort()
 
-        visual_context_correlation_tensor = create_concatenated_correlation_matrix(activity_matrix, visual_context_onsets, trial_start, trial_stop)
-        odour_context_correlation_tensor  = create_concatenated_correlation_matrix(activity_matrix, odour_context_onsets, trial_start, trial_stop)
+        visual_context_tensor = get_activity_tensor(activity_matrix, visual_context_onsets, trial_start, trial_stop)
+        odour_context_tensor = get_activity_tensor(activity_matrix, odour_context_onsets, trial_start, trial_stop)
+
+        visual_correlation_matrix = create_concatenated_correlation_matrix(visual_context_tensor)
+        odour_correlation_matrix = create_concatenated_correlation_matrix(odour_context_tensor)
+
+        difference_matrix = np.diff([visual_correlation_matrix, odour_correlation_matrix], axis=0)[0]
 
         save_directory = base_directory + "/Pre_Stimulus/"
         if not os.path.exists(save_directory):
             os.mkdir(save_directory)
 
-        np.save(save_directory + "/Visual_Context_Correlation_Tensor.npy", visual_context_correlation_tensor)
-        np.save(save_directory + "/Odour_Context_Correlation_Tensor.npy", odour_context_correlation_tensor)
+        np.save(save_directory + "/Visual_Context_Correlation_Concatenated.npy", visual_correlation_matrix)
+        np.save(save_directory + "/Odour_Context_Correlation_Concatenated.npy", odour_correlation_matrix)
+        np.save(save_directory + "/Concatenated_Modulation.npy", difference_matrix)
 
-        visual_context_correlation_tensor = np.load(base_directory + "/Visual_Context_Correlation_Tensor.npy")
-        odour_context_correlation_tensor = np.load(base_directory + "/Odour_Context_Correlation_Tensor.npy")
+        if display == True:
 
-        # View Mean Matricies
-        get_cluster_centroids(base_directory, clusters_file)
-        plot_correlation_matirices(visual_context_correlation_tensor, odour_context_correlation_tensor)
-        get_significant_changes(base_directory, clusters_file, session_name)
-        # score_list = decode_context_from_correlation_matrix(base_directory, clusters_file)
-        # mean_score = np.mean(score_list)
-        # mean_scores.append(mean_score)
+            print("Visual Correlation Matirx", np.shape(visual_correlation_matrix))
+            print("Odour correlation Matrix", np.shape(odour_correlation_matrix))
 
-    print("Mean  Scores", mean_scores)
+            # Sort Matricies
+            difference_matrix, [visual_correlation_matrix, odour_correlation_matrix] = jointly_sort_matricies(difference_matrix, [visual_correlation_matrix, odour_correlation_matrix])
+
+            figure_1 = plt.figure()
+            vis_axis = figure_1.add_subplot(1, 3, 1)
+            odour_axis = figure_1.add_subplot(1, 3, 2)
+            difference_axis = figure_1.add_subplot(1, 3, 3)
+
+            vis_axis.set_title("Visual Context Pre Stimulus Correlations")
+            odour_axis.set_title("Odour Context Pre Stimulus Correlations")
+
+            vis_axis.imshow(visual_correlation_matrix,  cmap='bwr', vmin=-1, vmax=1)
+            odour_axis.imshow(odour_correlation_matrix, cmap='bwr', vmin=-1, vmax=1)
+            difference_axis.imshow(difference_matrix,   cmap='bwr', vmin=-1, vmax=1)
+
+            plt.show()
 
 
+def compare_pre_stimulus_correlations(session_list, display=False):
 
-
-
-def compare_pre_stimulus_correlations(session_list):
     trial_start = -70
     trial_stop = -14
 
     for base_directory in session_list:
+
+        # Get Session Name
         session_name = base_directory.split("/")[-3]
-        print(session_name)
-        # view_cluster_centroids(base_directory)
+        print("Getting Pre Stimulus Correlations For Session: " + session_name)
 
         # Load Activity Matrix
         cluster_activity_matrix_file = base_directory + "/Cluster_Activity_Matrix.npy"
         activity_matrix = np.load(cluster_activity_matrix_file)
-
 
         # Load Stimuli Onsets
         vis_1_odour_context_onsets  = np.load(base_directory + r"/Stimuli_Onsets/odour_context_stable_vis_1_frame_onsets.npy")
@@ -537,24 +560,74 @@ def compare_pre_stimulus_correlations(session_list):
         np.save(save_directory + "/Visual_Context_Correlation_Tensor.npy", visual_context_correlation_tensor)
         np.save(save_directory + "/Odour_Context_Correlation_Tensor.npy", odour_context_correlation_tensor)
 
-        visual_context_correlation_tensor = np.load(base_directory + "/Visual_Context_Correlation_Tensor.npy")
-        odour_context_correlation_tensor = np.load(base_directory + "/Odour_Context_Correlation_Tensor.npy")
+    if display == True:
 
-        # View Mean Matricies
-        get_cluster_centroids(base_directory, clusters_file)
-        plot_correlation_matirices(visual_context_correlation_tensor, odour_context_correlation_tensor)
-        get_significant_changes(base_directory, clusters_file, session_name)
-        # score_list = decode_context_from_correlation_matrix(base_directory, clusters_file)
-        # mean_score = np.mean(score_list)
-        # mean_scores.append(mean_score)
+        figure_1 = plt.figure()
+        vis_axis = figure_1.add_subplot(1, 2, 1)
+        odour_axis = figure_1.add_subplot(1, 2, 2)
 
-    print("Mean  Scores", mean_scores)
+        vis_axis.set_title("Visual Context Pre Stimulus Correlations")
+        odour_axis.set_title("Odour Context Pre Stimulus Correlations")
 
+        vis_axis.imshow(np.mean(visual_context_correlation_tensor, axis=0), cmap='bwr', vmin=-1, vmax=1)
+        odour_axis.imshow(np.mean(odour_context_correlation_tensor, axis=0), cmap='bwr', vmin=-1, vmax=1)
 
-
+        plt.show()
 
 
-def compare_response_correlations(session_list):
+def get_noise_correlations(tensor):
+    # Get Tensor Structure
+    number_of_trials = np.shape(tensor)[0]
+    number_of_timepoints = np.shape(tensor)[1]
+    number_of_clusters = np.shape(tensor)[2]
+
+    # Get Mean Trace
+    mean_trace = np.mean(tensor, axis=0)
+
+    # Subtract Mean Trace
+    subtracted_tensor = np.subtract(tensor, mean_trace)
+
+    # Concatenate Trials
+    concatenated_subtracted_tensor = np.reshape(subtracted_tensor,
+                                                (number_of_trials * number_of_timepoints, number_of_clusters))
+    concatenated_subtracted_tensor = np.transpose(concatenated_subtracted_tensor)
+
+    # Calculate Correlation Matrix
+    noise_correlation_matrix = np.corrcoef(concatenated_subtracted_tensor)
+    mean_correlation_matrix = np.corrcoef(np.transpose(mean_trace))
+    """"
+    # View Process For Sanity Checking
+    print("Noise Correlations Raw Tensor", np.shape(tensor))
+
+    print("Mean Trace Shape", np.shape(mean_trace))
+    plt.title("Mean Trace")
+    plt.imshow(np.transpose(mean_trace))
+    plt.show()
+
+    print("Subtracted tensor shape", np.shape(tensor))
+    figure_1 = plt.figure()
+    axis_1 = figure_1.add_subplot(1, 3, 1)
+    axis_2 = figure_1.add_subplot(1, 3, 2)
+    axis_3 = figure_1.add_subplot(1, 3, 3)
+
+    plt.title("Subtracted Tensor")
+    axis_1.imshow(np.transpose(mean_trace))
+    axis_2.imshow(np.transpose(tensor[0]))
+    axis_3.imshow(np.transpose(subtracted_tensor[0]))
+    plt.show()
+
+    print("Reshaped Subtracted Tensor", np.shape(subtracted_tensor))
+    plt.title("Concatenated Subtracted Tensor")
+    plt.imshow(np.transpose(concatenated_subtracted_tensor))
+    plt.show()
+
+    correlation_matrix = sort_matrix(correlation_matrix)
+    plt.imshow(correlation_matrix, cmap='bwr', vmin=-1, vmax=1)
+    plt.show()
+    """
+    return noise_correlation_matrix, mean_correlation_matrix
+
+def compare_noise_correlations(session_list):
 
     trial_start = 0
     trial_stop = 40
@@ -563,49 +636,56 @@ def compare_response_correlations(session_list):
 
         # Get Session Name
         session_name = base_directory.split("/")[-3]
-        session_name = session_name + "Stimulus_Evoked_"
+        print("Getting Stimulus Evoked Correlations For Session: " + session_name)
+
+        # Create Save Directory
+        save_directory = base_directory + "/Noise_Correlations/"
+        if not os.path.exists(save_directory):
+            os.mkdir(save_directory)
 
         # Load Activity Matrix
         cluster_activity_matrix_file = base_directory + "/Cluster_Activity_Matrix.npy"
         activity_matrix = np.load(cluster_activity_matrix_file)
 
         # Load Stimuli Onsets
-        visual_context_onsets  = np.load(base_directory + r"/Stimuli_Onsets/odour_context_stable_vis_2_frame_onsets.npy")
+        visual_context_onsets = np.load(base_directory + r"/Stimuli_Onsets/odour_context_stable_vis_2_frame_onsets.npy")
         odour_context_onsets = np.load(base_directory + r"/Stimuli_Onsets/visual_context_stable_vis_2_frame_onsets.npy")
 
-        # Create Correlation Tensors
-        visual_context_correlation_tensor = create_correlation_tensor(activity_matrix, visual_context_onsets, trial_start, trial_stop)
-        odour_context_correlation_tensor = create_correlation_tensor(activity_matrix, odour_context_onsets, trial_start, trial_stop)
+        # Create Activity Tensors
+        visual_context_tensor = get_activity_tensor(activity_matrix, visual_context_onsets, trial_start, trial_stop)
+        odour_context_tensor = get_activity_tensor(activity_matrix, odour_context_onsets, trial_start, trial_stop)
 
-        np.save(base_directory + "/Stimulus_Evoked_Visual_Context_Correlation_Tensor.npy", visual_context_correlation_tensor)
-        np.save(base_directory + "/Stimulus-Evoked_Odour_Context_Correlation_Tensor.npy", odour_context_correlation_tensor)
+        # Get Noise Correlation Matirices
+        visual_context_noise_correlations, visual_context_mean_correlations = get_noise_correlations(visual_context_tensor)
+        odour_context_noise_correlations, odour_context_mean_correlations = get_noise_correlations(odour_context_tensor)
 
-        visual_context_correlation_tensor = np.load(base_directory + "/Stimulus_Evoked_Visual_Context_Correlation_Tensor.npy")
-        odour_context_correlation_tensor = np.load(base_directory + "/Stimulus-Evoked_Odour_Context_Correlation_Tensor.npy")
+        # Get Difference In Noise Correlations
+        noise_delta_matrix = np.diff(np.array([visual_context_noise_correlations, odour_context_noise_correlations]), axis=0)[0]
 
-        # View Mean Matricies
-        get_cluster_centroids(base_directory, clusters_file)
-        plot_correlation_matirices(visual_context_correlation_tensor, odour_context_correlation_tensor)
-        get_significant_changes(base_directory, clusters_file, session_name, visual_context_correlation_tensor, odour_context_correlation_tensor)
-        # score_list = decode_context_from_correlation_matrix(base_directory, clusters_file)
-        # mean_score = np.mean(score_list)
-        # mean_scores.append(mean_score)
+        # Get Difference In Mean Correlations
+        mean_delta_matrix = np.diff(np.array([visual_context_mean_correlations, odour_context_mean_correlations]), axis=0)[0]
 
-    print("Mean  Scores", mean_scores)
+        # Save Difference
+        np.save(save_directory + "/Visual_Context_Noise_Correlations.npy", visual_context_noise_correlations)
+        np.save(save_directory + "/Odour_Context_Noise_Correlations.npy", odour_context_noise_correlations)
+        np.save(save_directory + "/Noise_Correlation_Delta_Matrix.npy", noise_delta_matrix)
+        np.save(save_directory + "/Mean_Correlation_Delta_Matrix.npy", mean_delta_matrix)
+
+
 
 clusters_file = "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/clean_clusters.npy"
 
 session_list = ["/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NXAK14.1A/2021_06_17_Transition_Imaging/",
+                "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NXAK7.1B/2021_04_02_Transition_Imaging/",
+                "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NXAK4.1B/2021_04_10_Transition_Imaging/",
+                "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NRXN78.1A/2020_12_09_Switching_Imaging",
+                "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NRXN78.1D/2020_11_29_Switching_Imaging",
+
+                "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NXAK4.1A/2021_04_12_Transition_Imaging",
                 "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NXAK16.1B/2021_07_08_Transition_Imaging/",
                 "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NXAK10.1A/2021_06_18_Transition_Imaging/",
-                "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NXAK7.1B/2021_04_02_Transition_Imaging/",
-                "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NXAK4.1B/2021_04_10_Transition_Imaging/"]
+                "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NXAK12.1F/2021_09_22_Transition_Imaging",
+                "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NRXN71.2A/2020_12_17_Switching_Imaging"]
 
-
-session_list = ["/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NXAK4.1A/2021_04_12_Transition_Imaging"]
-
-session_list = ["/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NXAK12.1F/2021_09_22_Transition_Imaging"]
-
-session_list = ["/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NRXN78.1A/2020_12_09_Switching_Imaging"]
-
-compare_pre_stimulus_correlations(session_list)
+compare_noise_correlations(session_list)
+#compare_pre_stimulus_correlations_concatenated(session_list, display=True)

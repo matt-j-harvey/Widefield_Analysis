@@ -124,7 +124,7 @@ def view_cluster_activity_matrix(base_directory):
     video.release()
 
 
-session_list = ["/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NRXN78.1A/2020_12_09_Switching_Imaging"]
+session_list = ["/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NRXN71.2A/2020_12_17_Switching_Imaging"]
 
 for session in session_list:
     convert_downsampled_delta_f_to_cluster_traces(session)

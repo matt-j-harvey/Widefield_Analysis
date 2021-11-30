@@ -372,13 +372,13 @@ def visualise_clusters(base_directory):
 def perform_pixel_clustering(base_directory):
 
     # Downsample Data Matrix
-    downsample_widefield_data("Delta_F.h5", base_directory)
+    #downsample_widefield_data("Delta_F.h5", base_directory)
 
     # Compute Distance Matrix
-    compute_distance_matrix(base_directory)
+    #compute_distance_matrix(base_directory)
 
     # Convert Distance To Simmilairty Matrix
-    convert_distancce_to_simmilarity_matrix(base_directory)
+    #convert_distancce_to_simmilarity_matrix(base_directory)
 
     # Normalise Simmilairty Matrix
     normalise_affinity_matrix(base_directory)
@@ -393,7 +393,7 @@ def perform_pixel_clustering(base_directory):
     visualise_clusters(base_directory)
 
 
-session_list = ["/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NRXN78.1A/2020_12_09_Switching_Imaging"]
+session_list = ["/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NRXN71.2A/2020_12_17_Switching_Imaging"]
 
 for session in session_list:
     perform_pixel_clustering(session)
