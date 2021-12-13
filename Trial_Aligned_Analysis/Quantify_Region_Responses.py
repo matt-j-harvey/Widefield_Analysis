@@ -14,155 +14,136 @@ from scipy import signal, ndimage, stats
 from skimage.transform import resize
 from scipy.interpolate import interp1d
 
+def get_selected_pixels(selected_regions, pixel_assignments):
 
-def get_activity_tensor(activity_matrix, onsets, start_window, stop_window):
+    # Get Pixels Within Selected Regions
+    selected_pixels = []
+    for region in selected_regions:
+        region_mask = np.where(pixel_assignments == region, 1, 0)
+        region_indicies = np.nonzero(region_mask)[0]
+        for index in region_indicies:
+            selected_pixels.append(index)
+    selected_pixels.sort()
 
-    number_of_pixels = np.shape(activity_matrix)[1]
-    number_of_trials = np.shape(onsets)[0]
-    number_of_timepoints = stop_window - start_window
-
-    # Create Empty Tensor To Hold Data
-    activity_tensor = np.zeros((number_of_trials, number_of_timepoints, number_of_pixels))
-
-    # Get Correlation Matrix For Each Trial
-    for trial_index in range(number_of_trials):
-
-        # Get Trial Activity
-        trial_start = onsets[trial_index] + start_window
-        trial_stop = onsets[trial_index] + stop_window
-        trial_activity = activity_matrix[trial_start:trial_stop]
-        activity_tensor[trial_index] = trial_activity
-
-    return activity_tensor
+    return selected_pixels
 
 
-def get_region_response(session_list, onsets_file_list, trial_start, trial_stop, selected_regions, baseline_normalise=True):
 
-    response_list = []
-
-    # Open Atlas Labels
-    atlas_labels = np.recfromcsv(r"/home/matthew/Documents/Allen_Atlas_Templates/Atlas_Labels.csv")
-    #print(atlas_labels)
-
-    #atlas_image = np.load(r"/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NXAK14.1A/2021_06_17_Transition_Imaging/Pixel_Assignmnets_Image.npy")
-    #plt.imshow(atlas_image)
-    #plt.show()
+def get_region_response(selected_pixels, activity_tensor, baseline_normalise=False):
 
 
-    for base_directory in session_list:
-        print(base_directory)
+    # Get Mean Response For Region For Each Trial
+    region_pixel_responses = activity_tensor[:, :, selected_pixels]
+    region_pixel_responses = np.nan_to_num(region_pixel_responses)
+    region_responses = np.mean(region_pixel_responses, axis=2)
+    region_responses = np.nan_to_num(region_responses)
 
-        # Load Region Assignments
-        pixel_assignments = np.load(os.path.join(base_directory, "Pixel_Assignmnets.npy"))
+    if baseline_normalise == False:
+        return region_responses
 
-        # Load Delta F Matrix
-        delta_f_matrix_filepath = os.path.join(base_directory, "Delta_F.h5")
-        delta_f_matrix_container = tables.open_file(delta_f_matrix_filepath, mode='r')
-        delta_f_matrix = delta_f_matrix_container.root['Data']
+    elif baseline_normalise == True:
+        baseline = region_responses[:, 0: -1 * trial_start]
+        baseline = np.mean(baseline, axis=1)
 
-        # Load Onsets
-        onsets = []
-        for onsets_file in onsets_file_list:
-            onsets_file_contents = np.load(os.path.join(base_directory, "Stimuli_Onsets", onsets_file))
-            for onset in onsets_file_contents:
-                onsets.append(onset)
+        number_of_trials = len(onsets)
+        trial_length = trial_stop - trial_start
+        normalised_region_responses = np.zeros((number_of_trials, trial_length))
 
-        # Create Trial Tensor
-        activity_tensor = get_activity_tensor(delta_f_matrix, onsets, trial_start, trial_stop)
+        for timepoint in range(trial_length):
+            timepoint_response = region_responses[:, timepoint]
+            normalised_response = np.subtract(timepoint_response, baseline)
+            normalised_region_responses[:, timepoint] = normalised_response
 
-        # Get Pixels Within Selected Regions
-        selected_pixels = []
-        for region in selected_regions:
-            region_mask = np.where(pixel_assignments == region, 1, 0)
-            region_indicies = np.nonzero(region_mask)[0]
-            for index in region_indicies:
-                selected_pixels.append(index)
-        selected_pixels.sort()
-
-        # Get Mean Response For Region For Each Trial
-        region_pixel_responses = activity_tensor[:, :, selected_pixels]
-        region_pixel_responses = np.nan_to_num(region_pixel_responses)
-        region_responses = np.mean(region_pixel_responses, axis=2)
-        region_responses = np.nan_to_num(region_responses)
-
-        if baseline_normalise == True:
-            baseline = region_responses[:, 0: -1 * trial_start]
-            baseline = np.mean(baseline, axis=1)
-
-            number_of_trials = len(onsets)
-            trial_length = trial_stop - trial_start
-            normalised_region_responses = np.zeros((number_of_trials, trial_length))
-
-            for timepoint in range(trial_length):
-                timepoint_response = region_responses[:, timepoint]
-                normalised_response = np.subtract(timepoint_response, baseline)
-                normalised_region_responses[:, timepoint] = normalised_response
-
-            session_responses = normalised_region_responses
-
-        # Add Responses To List
-        else:
-            session_responses = []
-            for response in region_responses:
-                session_responses.append(response)
-
-        # Add Session Responses To Grand List
-        response_list.append(session_responses)
-
-    return response_list
+        return normalised_region_responses
 
 
-def plot_individual_response(base_directory, trial_start, trial_stop, visual_responses, odour_responses, save_directory, plot_name=None, colour='blue'):
+def get_region_response_single_mouse(base_directory, activity_tensor_list, start_window, stop_window, condition_names, save_directory, baseline_normalise=False):
 
+    v1 = [45, 46]
+    pmv = [47, 48]
+    amv = [39, 40]
+    rsc = [32, 28]
+    s1 = [21, 24]
+    m2 = [8, 9]
+    visual_cortex = v1 + pmv + amv
+
+    region_index_list = [v1, pmv, amv, visual_cortex, rsc, s1, m2]
+    region_name_list = ["V1", "PMV", "AMV", "Visual_Cortex", "RSC", "S1", "M2"]
+
+    # Load Region Assignments
+    pixel_assignments = np.load(os.path.join(base_directory, "Pixel_Assignmnets.npy"))
+
+    # Quantify Responses For Each Region
+    number_of_regions = len(region_index_list)
+    for region_index in range(number_of_regions):
+
+        region_numbers = region_index_list[region_index]
+        region_name = region_name_list[region_index]
+        selected_pixels = get_selected_pixels(region_numbers, pixel_assignments)
+
+        print(pixel_assignments)
+        condition_1_region_response = get_region_response(selected_pixels, activity_tensor_list[0], baseline_normalise=baseline_normalise)
+        condition_2_region_response = get_region_response(selected_pixels, activity_tensor_list[1], baseline_normalise=baseline_normalise)
+
+        """
+        print("Region responses", np.shape(condition_1_region_response))
+        plt.imshow(condition_1_region_response)
+        plt.show()
+
+        plt.imshow(condition_2_region_response)
+        plt.show()
+        """
+        plot_individual_response(condition_1_region_response, condition_2_region_response, start_window, stop_window, condition_names, region_name, save_directory)
+
+
+def plot_individual_response(condition_1_responses, condition_2_responses, start_window, stop_window, condition_names, region_name, save_directory):
 
     # Get X Values
-    x_values = list(range(trial_start, trial_stop))
+    x_values = list(range(start_window, stop_window))
     x_values = np.multiply(x_values, 36)
 
     # Get Average Trace
-    visual_average = np.mean(visual_responses, axis=0)
-    odour_average = np.mean(odour_responses, axis=0)
-    visual_average = np.nan_to_num(visual_average)
-    odour_average = np.nan_to_num(odour_average)
+    condition_1_average = np.mean(condition_1_responses, axis=0)
+    condition_2_average = np.mean(condition_2_responses, axis=0)
+    condition_1_average = np.nan_to_num(condition_1_average)
+    condition_2_average = np.nan_to_num(condition_2_average)
 
-    # Get STD
-    visual_sd = scipy.stats.sem(visual_responses, axis=0)
-    odour_sd = scipy.stats.sem(odour_responses, axis=0)
-    visual_sd = np.nan_to_num(visual_sd)
-    odour_sd = np.nan_to_num(odour_sd)
+    # Get SEM
+    condition_1_sem = scipy.stats.sem(condition_1_responses, axis=0)
+    condition_2_sem = scipy.stats.sem(condition_2_responses, axis=0)
+    condition_1_sem = np.nan_to_num(condition_1_sem)
+    condition_2_sem = np.nan_to_num(condition_2_sem)
 
     # Check For Significance
-    t_stats, p_values = stats.ttest_ind(visual_responses, odour_responses)
+    t_stats, p_values = stats.ttest_ind(condition_1_responses, condition_2_responses)
     significant_points = []
     count = 0
     for timepoint in x_values:
         if p_values[count] < 0.05:
             significant_points.append(timepoint)
         count += 1
+    max_value = np.max([np.add(condition_1_average, condition_1_sem), np.add(condition_2_average, condition_2_sem)])
 
-    max_value = np.max([np.add(visual_average, visual_sd), np.add(odour_average, odour_sd)])
+    # Plot All This
+    plt.plot(x_values, condition_1_average, c='b', marker='o', label=condition_names[0])
+    plt.plot(x_values, condition_2_average, c='g', linestyle='dotted', marker='^', label=condition_names[1])
+    plt.legend()
 
-    plt.plot(x_values, visual_average, c=colour, marker='o')
-    plt.plot(x_values, odour_average, c=colour, linestyle='dotted', marker='^')
-    plt.fill_between(x_values, np.add(visual_average, visual_sd), np.subtract(visual_average, visual_sd), alpha=0.1, color=colour)
-    plt.fill_between(x_values, np.add(odour_average, odour_sd), np.subtract(odour_average, odour_sd), alpha=0.1, color=colour)
-    plt.scatter(significant_points, np.ones(len(significant_points)) * max_value, c='k')
+    plt.fill_between(x_values, np.add(condition_1_average, condition_1_sem), np.subtract(condition_1_average, condition_1_sem), alpha=0.1, color='b')
+    plt.fill_between(x_values, np.add(condition_2_average, condition_2_sem), np.subtract(condition_2_average, condition_2_sem), alpha=0.1, color='g')
+
+    plt.scatter(significant_points, np.ones(len(significant_points)) * max_value, c='k', marker='*')
 
     # Add Onset Line
     plt.axvline([0], c='k')
 
     # Set Plot Title
-    if plot_name != None:
-        plt.title(plot_name)
+    plt.title(region_name)
 
-    # Ensure Save Directory Exists
-    full_save_path = os.path.join(base_directory, save_directory)
-    if not os.path.isdir(full_save_path):
-        os.mkdir(full_save_path)
-
-    plt.savefig(full_save_path + ".png")
+    # Save Plot
+    plt.savefig(os.path.join(save_directory, region_name + ".png"))
     plt.close()
-    #plt.show()
+
 
 
 def plot_group_reponse(trial_start, trial_stop, visual_responses, odour_responses, colour='b'):
@@ -208,38 +189,6 @@ def get_session_name(base_directory):
     session_name = split_directory[-2] + "_" + split_directory[-1]
     return session_name
 
-
-
-controls = ["/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NXAK14.1A/2021_06_17_Transition_Imaging",
-            "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NXAK7.1B/2021_04_02_Transition_Imaging",
-            "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NXAK4.1B/2021_04_10_Transition_Imaging",
-            "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NRXN78.1A/2020_12_09_Switching_Imaging",
-            "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NRXN78.1D/2020_11_29_Switching_Imaging"]
-
-mutants =  ["/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NXAK4.1A/2021_04_12_Transition_Imaging",
-            "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NXAK16.1B/2021_07_08_Transition_Imaging",
-            "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NXAK10.1A/2021_06_18_Transition_Imaging",
-            "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NXAK12.1F/2021_09_22_Transition_Imaging",
-            "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NRXN71.2A/2020_12_17_Switching_Imaging"]
-
-
-v1 = [45, 46]
-pmv = [47, 48]
-amv = [39, 40]
-rsc = [32, 28]
-s1 = [21, 24]
-m2 = [8, 9]
-visual_cortex = v1 + pmv + amv
-
-
-
-trial_start = -65
-trial_stop = -4
-visual_onset_file = ["visual_context_stable_vis_1_frame_onsets.npy", "visual_context_stable_vis_2_frame_onsets.npy"]
-odour_onset_file = ["odour_context_stable_vis_1_frame_onsets.npy", "odour_context_stable_vis_2_frame_onsets.npy"]
-plot_save_directory = "Pre_Stimuli_Mean_Visual_Cortex_Matched"
-
-
 """
 visual_onset_file = ["Combined_Visual_Pre_Matched.npy"]
 odour_onset_file = ["Combined_Odour_Pre_Matched.npy"]
@@ -251,7 +200,7 @@ trial_stop = 40
 visual_onset_file = ["visual_context_stable_vis_2_frame_onsets.npy"]
 odour_onset_file = ["odour_context_stable_vis_2_frame_onsets.npy"]
 plot_save_directory = "Vis_2_Response_Visual_Cortex_Matched"
-"""
+
 x_values = list(range(trial_start, trial_stop))
 x_values = np.multiply(x_values, 36)
 
@@ -319,3 +268,4 @@ plt.axvline([0], c='k')
 plt.show()
 #plt.vlines(10)
 
+"""

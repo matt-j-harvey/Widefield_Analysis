@@ -445,8 +445,7 @@ def create_ai_recorder_regressors(base_directory, onsets_list, start_window, sto
 
 
 
-
-def create_visual_stimuli_regressors(onsets, start_window, stop_window, base_directory, visual_stimulus):
+def create_visual_stimuli_regressors(onsets, start_window, stop_window, base_directory, visual_stimulus, condition_number):
 
     # Load AI Data
     ai_file_location = get_ai_filename(base_directory)
@@ -463,7 +462,8 @@ def create_visual_stimuli_regressors(onsets, start_window, stop_window, base_dir
     # Create Empty Design Matrix
     number_of_trials = len(onsets)
     trial_window_size = stop_window - start_window
-    visual_stimuli_regressors = np.zeros((number_of_trials, trial_window_size, trial_window_size))
+    #print("Trial Window Size", trial_window_size)
+    visual_stimuli_regressors = np.zeros((number_of_trials, trial_window_size, trial_window_size * 2))
 
     for visual_onset_index in range(number_of_trials):
 
@@ -478,99 +478,37 @@ def create_visual_stimuli_regressors(onsets, start_window, stop_window, base_dir
         closest_frame_time = take_closest(frame_time_list, visual_time_offset)
         closest_frame = time_frame_dict[closest_frame_time]
         stim_duration_in_frames = closest_frame - visual_onset
+
+        if stim_duration_in_frames > stop_window:
+            stim_duration_in_frames = stop_window
         trial_relative_frame_offset = trial_relvative_frame_onset + stim_duration_in_frames
 
         # Create Trial Regressor Matrix
         trial_regressor_matrix = np.zeros((trial_window_size, trial_window_size))
         stimuli_matrix = np.identity((stim_duration_in_frames))
+        #print("Stim duration in frames", stim_duration_in_frames)
+        #print("Trial regressor matrix", np.shape(trial_regressor_matrix))
+        #print("Srimuli MAtrix Shape", np.shape(stimuli_matrix))
         trial_regressor_matrix[trial_relvative_frame_onset:trial_relative_frame_offset, trial_relvative_frame_onset:trial_relative_frame_offset] = stimuli_matrix
+
+        zero_padding = np.zeros((trial_window_size, trial_window_size))
+
+        if condition_number == 1:
+            trial_regressor_matrix = np.concatenate([trial_regressor_matrix, zero_padding], axis=1)
+        elif condition_number == 2:
+            trial_regressor_matrix = np.concatenate([zero_padding, trial_regressor_matrix], axis=1)
 
         # Add Trial Matrix To Regressors
         visual_stimuli_regressors[visual_onset_index] = trial_regressor_matrix
 
-        #plt.imshow(visual_stimuli_regressors[visual_onset_index])
+        #plt.imshow(np.transpose(visual_stimuli_regressors[visual_onset_index]))
         #plt.show()
 
     return visual_stimuli_regressors
 
 
 
-def create_bodycam_regressors(base_directory, onsets, save_directory, number_of_mousecam_components=100):
 
-    # Get File Names
-    bodycam_file = get_bodycam_filename(base_directory)
-    ai_file = get_ai_filename(base_directory)
-
-    # Get All Selected Widefield Frames
-    selected_widefield_frames = get_selected_widefield_frames(onsets, start_window, stop_window)
-
-    # Get Video Details
-    bodycam_frames, video_height, video_width = get_video_details(base_directory + bodycam_file)
-
-    # Get Number of Mousecam triggers
-    stimuli_dictionary = create_stimuli_dictionary()
-    ai_data = load_ai_recorder_file(base_directory + ai_file)
-    mousecam_trace = ai_data[stimuli_dictionary["Mousecam"]]
-    mousecam_onsets, mousecam_line = get_step_onsets(mousecam_trace, threshold=2, window=2)
-    if bodycam_frames != len(mousecam_onsets):
-        print("Frame Mismatch!", "Bodycam Frames: ", bodycam_frames, "Mousecam Onsets", len(mousecam_onsets))
-
-    # Match Mousecam Frames To Widefield Frames
-    mousecam_widefield_matching_dict = match_mousecam_frames_to_widefield_frames(mousecam_onsets, base_directory)
-    widefield_mousecam_dict = invert_dictionary(mousecam_widefield_matching_dict)
-    selected_mousecam_frames = get_selected_mousecam_frames(selected_widefield_frames, widefield_mousecam_dict)
-
-    if not os.path.exists(save_directory + "/Mousecam_SVD_Transformed_Data.npy"):
-
-        # Extract Selected Mousecam Frames From Video
-        video_array = load_video_as_numpy_array(base_directory + bodycam_file, selected_mousecam_frames)
-        print("Video array shape", np.shape(video_array))
-
-
-        # Perform SVD on These Frames
-        transformed_data, components = perform_svd_on_video(video_array, number_of_components=number_of_mousecam_components)
-
-        # Save The Resulting Components and Transformed Data
-        video_array = None
-        np.save(save_directory + "/Mousecam_SVD_Transformed_Data.npy", transformed_data)
-        np.save(save_directory + "/Mousecam_SVD_Components.npy", components)
-
-
-    else:
-        print("Using Saved SVDs")
-        transformed_data = np.load(save_directory + "/Mousecam_SVD_Transformed_Data.npy")
-
-    # Visualise These Components
-    mousecam_components = np.load(save_directory + "/Mousecam_SVD_Components.npy")
-    visualise_mousecam_components(mousecam_components, video_height, video_width, save_directory)
-
-    return transformed_data
-
-
-def exclude_selected_bodycam_components(bodycam_matrix, selected_components):
-
-    for component in selected_components:
-        bodycam_matrix[component] = 0
-
-    return bodycam_matrix
-
-
-
-def create_design_matrix(ai_regressors, visual_stimuli_regressors, bodycam_regressors):
-
-    # Get Data Details
-    number_of_trials = np.shape(ai_regressors)[0]
-    trial_length = np.shape(ai_regressors)[1]
-    number_of_datapoints = number_of_trials * trial_length
-
-    #Combine These Into A Single Matrix
-    design_matrix = np.concatenate([visual_stimuli_regressors, ai_regressors, bodycam_regressors], axis=2)
-    print("Design MAtrix", np.shape(design_matrix))
-
-    # Reshape Design Matrix from (Trials, Timepoint, Regressors) To (Trials * Timepoints, Regressors)
-    design_matrix = np.reshape(design_matrix, (number_of_datapoints, np.shape(design_matrix)[2]))
-
-    return design_matrix
 
 
 def perform_regression(design_matrix, widefield_matrix, save_directory):
@@ -589,156 +527,146 @@ def perform_regression(design_matrix, widefield_matrix, save_directory):
 
 
 
-def explore_regression(base_directory, save_directory, start_window, stop_window):
-
-    # Load Model
-    model = joblib.load(save_directory + "/Linear_Model.pkl")
-
-    # Get Coefficients
-    weights = model.coef_
-    print("Weights", np.shape(weights))
-
-    indicies, image_height, image_width = load_mask(base_directory)
-    trial_length = stop_window - start_window
-
-    number_of_predictors = np.shape(weights)[1]
-
-    # Visual_stimuli
-    plt.ion()
-    for timepoint in range(trial_length):
-        vis_stim_map = create_image_from_data(weights[:, timepoint], image_height, image_width, indicies)
-        plt.title("Visual: " + str(timepoint))
-        plt.imshow(vis_stim_map, cmap='inferno', vmin=0)
-        plt.draw()
-        plt.pause(0.1)
-        plt.clf()
-    plt.ioff()
 
 
-    # Lick = 0
-    lick_map = create_image_from_data(weights[:, trial_length], image_height, image_width, indicies)
-    plt.title("Lick")
-    plt.imshow(lick_map, cmap='bwr')
-    plt.show()
+def create_running_tensor(onsets, trial_start, trial_stop, downsampled_running_trace):
 
-    # Running = 1
-    running_map = create_image_from_data(weights[:, trial_length + 1], image_height, image_width, indicies)
-    plt.title("Running")
-    plt.imshow(running_map, cmap='bwr')
-    plt.show()
+    running_tensor = []
+    for onset in onsets:
+        start = onset + trial_start
+        stop = onset + trial_stop
+        trial_running_trace = downsampled_running_trace[start:stop]
+        running_tensor.append(trial_running_trace)
 
-    # Visualise_Video_Contributions
-    mousecam_components = np.load(save_directory + "/Mousecam_SVD_Components.npy")
+    running_tensor = np.array(running_tensor)
+    running_tensor = np.expand_dims(running_tensor, 2)
+    return running_tensor
 
-    mousecam_component = 0
-    for predictor in range(trial_length + 2, number_of_predictors):
 
-        figure_1 = plt.figure()
-        widefield_axis = figure_1.add_subplot(1,2,1)
-        mousecam_axis = figure_1.add_subplot(1,2,2)
+def get_activity_tensor(activity_matrix, onsets, start_window, stop_window):
 
-        # Create Regression Map
-        weight_map = create_image_from_data(weights[:,  predictor], image_height, image_width, indicies)
+    number_of_pixels = np.shape(activity_matrix)[1]
+    number_of_trials = np.shape(onsets)[0]
+    number_of_timepoints = stop_window - start_window
 
-        # Create Bodycam Image
-        bodycam_image = mousecam_components[mousecam_component]
-        bodycam_image = np.reshape(bodycam_image, (480, 640))
+    # Create Empty Tensor To Hold Data
+    activity_tensor = np.zeros((number_of_trials, number_of_timepoints, number_of_pixels))
 
-        plt.title("Bodycam Component: " + str(mousecam_component))
+    # Get Correlation Matrix For Each Trial
+    for trial_index in range(number_of_trials):
 
-        widefield_axis.imshow(weight_map, cmap='bwr')
-        mousecam_axis.imshow(abs(bodycam_image), cmap='jet', vmin=0)
-        plt.show()
+        # Get Trial Activity
+        trial_start = onsets[trial_index] + start_window
+        trial_stop = onsets[trial_index] + stop_window
+        trial_activity = activity_matrix[trial_start:trial_stop]
+        activity_tensor[trial_index] = trial_activity
 
-        mousecam_component += 1
+    return activity_tensor
 
 
 
 
+def create_design_matrix(activity_matrix, running_regressors, visual_stimuli_regressors):
+
+    # Get Data Details
+    number_of_trials = np.shape(running_regressors)[0]
+    trial_length = np.shape(running_regressors)[1]
+    number_of_datapoints = number_of_trials * trial_length
+
+    number_of_pixels = np.shape(activity_matrix)[2]
+
+    # Reshape Each Feature from [Trials x Length x Features] to [Timepoints, Features]
+    activity_matrix = np.ndarray.reshape(activity_matrix, (number_of_datapoints, number_of_pixels))
+    running_regressors = np.ndarray.reshape(running_regressors, (number_of_datapoints, 1))
+    visual_stimuli_regressors = np.ndarray.reshape(visual_stimuli_regressors, (number_of_datapoints, trial_length*2))
+    print("Reshaped Activity Matrix Shape", np.shape(activity_matrix))
+    print("Reshaped Running Regressors", np.shape(running_regressors))
+    print("Visual Simuli Regressors", np.shape(visual_stimuli_regressors))
+
+    #Combine These Into A Single Matrix
+    design_matrix = np.concatenate([running_regressors, visual_stimuli_regressors], axis=1)
+    print("Design Matrix", np.shape(design_matrix))
+
+    return activity_matrix, design_matrix
 
 
+def perform_ridge_regression(base_directory, onset_lists, trial_start, trial_stop, activity_tensor_list, stimuli_list):
+
+    # Load Onsets
+    condition_1_onsets = np.load(os.path.join(base_directory, "Stimuli_Onsets", onset_lists[0] + "_frame_onsets.npy"))
+    condition_2_onsets = np.load(os.path.join(base_directory, "Stimuli_Onsets", onset_lists[1] + "_frame_onsets.npy"))
+    print("Condition 1 trials", len(condition_1_onsets))
+    print("COndition 2 trials", len(condition_2_onsets))
+
+    # Load Delta F Matrix
+    delta_f_matrix_filepath = os.path.join(base_directory, "Delta_F.h5")
+    delta_f_matrix_container = tables.open_file(delta_f_matrix_filepath, mode='r')
+    delta_f_matrix = delta_f_matrix_container.root['Data']
+
+    # Get Activity Tensors
+    condition_1_activity_tensor = get_activity_tensor(delta_f_matrix, condition_1_onsets, trial_start, trial_stop)
+    condition_2_activity_tensor = get_activity_tensor(delta_f_matrix, condition_2_onsets, trial_start, trial_stop)
+
+    # Get Running Tensors
+    downsampled_running_trace = np.load(os.path.join(base_directory, "Downsampled_Running_Trace.npy"))
+    condition_1_running_tensor = create_running_tensor(condition_1_onsets, trial_start, trial_stop, downsampled_running_trace)
+    condition_2_running_tensor = create_running_tensor(condition_2_onsets, trial_start, trial_stop, downsampled_running_trace)
+
+    # Create Visual Stimuli Regressors
+    condition_1_stimuli_regressors = create_visual_stimuli_regressors(condition_1_onsets, trial_start, trial_stop, base_directory, stimuli_list[0], 1)
+    condition_2_stimuli_regressors = create_visual_stimuli_regressors(condition_2_onsets, trial_start, trial_stop, base_directory, stimuli_list[1], 2)
+
+    # Stack The Two Conditions Ontop Of Eachother
+    activity_matrix = np.vstack([condition_1_activity_tensor, condition_2_activity_tensor])
+    visual_stimuli_regressors = np.vstack([condition_1_stimuli_regressors, condition_2_stimuli_regressors])
+    running_regressors = np.vstack([condition_1_running_tensor, condition_2_running_tensor])
+
+    print("Combined Activity Tensors", np.shape(activity_matrix))
+    print("Combined Stimuli Regressors", np.shape(visual_stimuli_regressors))
+    print("Combined Running Regressors", np.shape(running_regressors))
+
+    # Create Design Matrix
+    activity_matrix, design_matrix = create_design_matrix(activity_matrix, running_regressors, visual_stimuli_regressors)
+
+    # Remove NaNs
+    activity_matrix = np.nan_to_num(activity_matrix)
+
+    # Perform Regression
+    #(n_samples, n_features)
+    model = Ridge()
+    model.fit(X=design_matrix, y=activity_matrix)
+
+    # Save Coefficients
+    coefficients = model.coef_
+    intercepts = model.intercept_
+
+    save_directory = os.path.join(base_directory, "Ridge_Regression")
+    if not os.path.exists(save_directory):
+        os.mkdir(save_directory)
+
+    np.save(os.path.join(save_directory, "Coefficients.npy"), coefficients)
+    np.save(os.path.join(save_directory, "Intercepts.npy"), intercepts)
 
 
+#"/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK14.1A/2021_06_17_Transition_Imaging"
+#"/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK7.1B/2021_04_02_Transition_Imaging"
 
+controls = [
+            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK4.1B/2021_04_10_Transition_Imaging",
+            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NRXN78.1A/2020_12_09_Switching_Imaging",
+            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NRXN78.1D/2020_11_29_Switching_Imaging"]
 
-# Perform Preperations
+mutants =  ["/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK4.1A/2021_04_12_Transition_Imaging",
+            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK16.1B/2021_07_08_Transition_Imaging",
+            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK10.1A/2021_06_18_Transition_Imaging",
+            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK12.1F/2021_09_22_Transition_Imaging",
+            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NRXN71.2A/2020_12_17_Switching_Imaging"]
 
-# Settings
-#base_directory = r"/media/matthew/Seagate Expansion Drive1/Widefield_Imaging/Switching_Analysis/Selected_sessions/NXAK16.1B/2021_06_23_Switching_Imaging/"
-#base_directory = r"/media/matthew/Seagate Expansion Drive1/Widefield_Imaging/Switching_Analysis/Selected_sessions/NXAK14.1A/2021_06_09_Switching_Imaging/"
-base_directory = r"/media/matthew/Seagate Expansion Drive1/Widefield_Imaging/Switching_Analysis/Selected_sessions/NXAK10.1A/2021_05_20_Switching_Imaging/"
-
-
-condition = "odour_context_stable_vis_2"
-#condition = "visual_context_stable_vis_2"
-
+all_mice = controls + mutants
+onsets_list = ["visual_context_stable_vis_2", "odour_context_stable_vis_2"]
+activity_tensor_list = ["Vis_2_Stable_Visual",  "Vis_2_Stable_Odour"]
 start_window = -10
-stop_window = 100
-number_of_mousecam_components = 100
-mousecam_components_to_exclude = [3,4]
-
-# Check Linear Model Directory Exists
-linear_model_directory = base_directory + "/Linear_Model"
-check_directory(linear_model_directory)
-
-# Create Save Directory
-save_directory = linear_model_directory + "/" + condition
-check_directory(save_directory)
-
-# Load Frame Onsets and Frame Times
-frame_onsets_file = base_directory + "/Stimuli_Onsets/" + condition + "_frame_onsets.npy"
-frame_onsets = np.load(frame_onsets_file)
-
-
-
-
-# Extract Widefield Data
-widefield_file = base_directory + "/Delta_F.h5"
-widefield_data_file = tables.open_file(widefield_file, mode='r')
-widefield_data = widefield_data_file.root['Data']
-
-# Get All Selected Widefield Frames
-selected_widefield_frames = get_selected_widefield_frames(frame_onsets, start_window, stop_window)
-
-# Extract These Frames From THe Delta_F.h5 File
-selected_widefield_data = get_selected_widefield_data(selected_widefield_frames, widefield_data)
-
-
-
-# Create Regressors
-
-# Create AI Regressors
-ai_regressors = create_ai_recorder_regressors(base_directory, frame_onsets, start_window, stop_window)
-print("Ai Regressors", np.shape(ai_regressors))
-
-# Create Visual Stimuli Regressors
-visual_stimuli_regressors = create_visual_stimuli_regressors(frame_onsets, start_window, stop_window, base_directory, "Visual 2")
-print("Visual Stiimuli Regressors", np.shape(visual_stimuli_regressors))
-
-# Create Bodycam Regressors
-bodycam_regressors = create_bodycam_regressors(base_directory, frame_onsets, save_directory, number_of_mousecam_components=number_of_mousecam_components)
-bodycam_regressors = exclude_selected_bodycam_components(bodycam_regressors, mousecam_components_to_exclude)
-print("Bodycam regressors shape", np.shape(bodycam_regressors))
-
-
-# Create Design Matrix
-design_matrix = create_design_matrix(ai_regressors, visual_stimuli_regressors, bodycam_regressors)
-
-
-
-# Perform Regression
-perform_regression(design_matrix, selected_widefield_data, save_directory)
-
-
-# Explore Regression
-explore_regression(base_directory, save_directory, start_window, stop_window)
-
-
-# Create Design Matrix
-# One Model For Each Context
-# Running speed
-# Lick Trace
-# Behaviour Video SVDs
-
-
-
+stop_window = 40
+stimuli_list = ["Visual 2", "Visual 2"]
+for base_directory in all_mice:
+    perform_ridge_regression(base_directory, onsets_list, start_window, stop_window, activity_tensor_list, stimuli_list)

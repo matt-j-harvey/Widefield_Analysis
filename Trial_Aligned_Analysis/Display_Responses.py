@@ -413,24 +413,6 @@ mutants = [ "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transitio
             "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NRXN71.2A/2020_12_17_Switching_Imaging"]
 
 
-"""
-trial_start = -10
-trial_stop = 40
-"""
-
-trial_start = -65
-trial_stop = -4
-
-root_directory = "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/Mean_Responses"
-
-#visual_onsets_file = "visual_context_stable_vis_2_frame_onsets_Matched.npy"
-#odour_onsets_file = "odour_context_stable_vis_2_frame_onsets_Matched.npy"
-#plot_save_directory = "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/Mean_Responses/Matched_Images/"
-
-visual_onsets_file_list = ["visual_context_stable_vis_1_frame_onsets.npy", "visual_context_stable_vis_2_frame_onsets.npy"]
-odour_onsets_file_list = ["odour_context_stable_vis_1_frame_onsets.npy", "odour_context_stable_vis_2_frame_onsets.npy"]
-plot_save_directory = "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/Baseline_Responses/Image/"
-
 # Get Control Responses
 control_visual_response_save_directory = os.path.join(root_directory, "Controls_Visual_Pre_Average.npy")
 control_odour_response_save_directory  = os.path.join(root_directory, "Controls_Odour_Pre_Average.npy")

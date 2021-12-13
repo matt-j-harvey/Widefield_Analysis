@@ -170,20 +170,20 @@ def get_seed_correlation_maps(base_directory, visual_onsets_file, odour_onsets_f
     m2_odour_correlation_map = create_correlation_tensors(base_directory, odour_onsets_file, trial_start, trial_stop, m2)
 
     # Save Visual Maps
-    np.save(base_directory + "/V1_Visual_Correlation_Map.npy", v1_visual_correlation_map)
+    np.save(base_directory + "/V1_Visual_Correlation_Map.npy",  v1_visual_correlation_map)
     np.save(base_directory + "/PMV_Visual_Correlation_Map.npy", pmv_visual_correlation_map)
     np.save(base_directory + "/AMV_Visual_Correlation_Map.npy", amv_visual_correlation_map)
     np.save(base_directory + "/RSC_Visual_Correlation_Map.npy", rsc_visual_correlation_map)
-    np.save(base_directory + "/S1_Visual_Correlation_Map.npy", s1_visual_correlation_map)
-    np.save(base_directory + "/M2_Visual_Correlation_Map.npy", m2_visual_correlation_map)
+    np.save(base_directory + "/S1_Visual_Correlation_Map.npy",  s1_visual_correlation_map)
+    np.save(base_directory + "/M2_Visual_Correlation_Map.npy",  m2_visual_correlation_map)
 
     # Save Odour Maps
-    np.save(base_directory + "/V1_Odour_Correlation_Map.npy", v1_odour_correlation_map)
+    np.save(base_directory + "/V1_Odour_Correlation_Map.npy",  v1_odour_correlation_map)
     np.save(base_directory + "/PMV_Odour_Correlation_Map.npy", pmv_odour_correlation_map)
     np.save(base_directory + "/AMV_Odour_Correlation_Map.npy", amv_odour_correlation_map)
     np.save(base_directory + "/RSC_Odour_Correlation_Map.npy", rsc_odour_correlation_map)
-    np.save(base_directory + "/S1_Odour_Correlation_Map.npy", s1_odour_correlation_map)
-    np.save(base_directory + "/M2_Odour_Correlation_Map.npy", m2_odour_correlation_map)
+    np.save(base_directory + "/S1_Odour_Correlation_Map.npy",  s1_odour_correlation_map)
+    np.save(base_directory + "/M2_Odour_Correlation_Map.npy",  m2_odour_correlation_map)
 
 
 
