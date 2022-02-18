@@ -78,6 +78,7 @@ def get_onsets(base_directory, onsets_file_list):
     return onsets
 
 
+
 def correct_running_activity_tensor(base_directory, onsets, trial_start, trial_stop, activity_tensor, display=False):
 
     # Load Running Information
@@ -188,6 +189,29 @@ def create_activity_tensor_tables(base_directory, onsets_file_list, trial_start,
 
 
 
+
+
+
+def get_region_activity(tensor, region_map, selected_regions):
+
+    # Create Binary Map
+    binary_map = np.isin(region_map, selected_regions)
+
+    # Get Region Indicies
+    region_indicies = np.argwhere(binary_map)
+
+    # Get Region Traces
+    region_tensor = tensor[:, :, region_indicies]
+
+    # Get Mean Trace
+    region_mean = np.mean(region_tensor, axis=2)
+
+    return region_mean
+
+
+
+
+
 def create_activity_tensor(base_directory, onsets_file_list, trial_start, trial_stop, tensor_name, running_correction=False, spatial_smoothing=False, smoothing_sd=2):
     print(base_directory)
 
@@ -227,31 +251,6 @@ def create_activity_tensor(base_directory, onsets_file_list, trial_start, trial_
         np.save(os.path.join(save_directory, tensor_name + "_Corrected_Tensor.npy"), corrected_tensor)
     else:
         np.save(os.path.join(save_directory, tensor_name + "_Activity_Tensor.npy"), activity_tensor)
-
-
-
-
-def get_region_activity(tensor, region_map, selected_regions):
-
-    # Create Binary Map
-    binary_map = np.isin(region_map, selected_regions)
-
-    # Get Region Indicies
-    region_indicies = np.argwhere(binary_map)
-
-    # Get Region Traces
-    region_tensor = tensor[:, :, region_indicies]
-
-    # Get Mean Trace
-    region_mean = np.mean(region_tensor, axis=2)
-
-    return region_mean
-
-
-
-
-
-
 
 
 
