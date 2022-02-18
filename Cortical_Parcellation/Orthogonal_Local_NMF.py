@@ -11,6 +11,7 @@ import matplotlib.gridspec as gridspec
 import tensorflow.experimental.numpy as tnp
 import tensorflow_probability as tfp
 from scipy.spatial import ConvexHull
+import datetime
 
 sys.path.append("/home/matthew/Documents/Github_Code/Widefield_Preprocessing")
 
@@ -18,38 +19,23 @@ import Widefield_General_Functions
 
 
 
-def get_convex_hull(numpy_array, image_height, image_width, indicies):
 
-    # Convert From Tensor
-    numpy_array = np.array(numpy_array)
-    max_area = 2412.0
+def create_coordinate_vectors(indicies, image_height, image_width):
 
-    # Recreate Brain Image
-    template = np.zeros((image_height * image_width))
-    template[indicies] = numpy_array
-    template = np.ndarray.reshape(template, (image_height, image_width))
+    # Create X and Y Coordinate Vectors
+    y_coordinate_vector = []
+    x_coordinate_vector = []
+    for index in indicies:
+        y_coord = np.floor_divide(index, image_width)
+        x_coord = index % image_width
 
-    if np.sum(numpy_array) > 3:
+        y_coordinate_vector.append(y_coord)
+        x_coordinate_vector.append(x_coord)
 
-        # Get Non Zero Indicies
-        nonzero = np.nonzero(template)
-        nonzero_row = nonzero[0]
-        nonzero_col = nonzero[1]
-        coordinates = np.vstack([nonzero_row, nonzero_col])
-        points = np.transpose(coordinates)
+    y_coordinate_vector = tf.convert_to_tensor(y_coordinate_vector, dtype=tf.float32)
+    x_coordinate_vector = tf.convert_to_tensor(x_coordinate_vector, dtype=tf.float32)
 
-        # Get Convex Hull
-        hull = ConvexHull(points)
-
-        # Get Area
-        area = hull.area
-        area = area / max_area
-        area = tf.cast(area, tf.float32)
-
-    else:
-        area = 0
-
-    return area
+    return y_coordinate_vector, x_coordinate_vector
 
 
 def makeGaussian(size, fwhm = 3, center=None):
@@ -97,7 +83,6 @@ def seed_initial_regions_grid(base_directory):
             if current_index in indicies:
                 gaussian_centres.append([y, x + x_offset])
 
-    print("Gaussian Centers", len(gaussian_centres))
     gaussian_array = []
     factors = []
     for centre in gaussian_centres:
@@ -111,54 +96,13 @@ def seed_initial_regions_grid(base_directory):
         gaussian_array.append(square_factor)
 
     gaussian_array = np.array(gaussian_array)
-    gaussian_array = np.max(gaussian_array, axis=0)
-    plt.imshow(gaussian_array)
-    plt.show()
+    gaussian_array = np.mean(gaussian_array, axis=0)
 
     initial_factors = np.array(factors)
     initial_factors = np.transpose(initial_factors)
-    print("Initial Factors Shape", np.shape(initial_factors))
+
     initial_factors = tf.convert_to_tensor(initial_factors, dtype=tf.float32)
     return initial_factors
-
-
-
-def seed_initial_regions(base_directory):
-
-    #pixel_assignments_image = np.load(os.path.join(base_directory, "Pixel_Assignmnets_Image.npy"))
-    #plt.imshow(pixel_assignments_image)
-    #plt.show()
-
-    # Load Pixel Assignments
-    pixel_assignments = np.load(os.path.join(base_directory, "Pixel_Assignmnets.npy"))
-    number_of_regions = np.max(pixel_assignments)
-
-    # Load Mask Details
-    indicies, image_height, image_width = Widefield_General_Functions.load_mask(base_directory)
-
-    initial_factors = []
-
-    # Factors Per Region
-    factors_per_region = 3
-    for region in range(2, number_of_regions):
-        factor_vector = np.where(pixel_assignments == region, 1, 0)
-        for x in range(factors_per_region):
-            initial_factors.append(factor_vector)
-
-    initial_factors = np.array(initial_factors)
-    initial_factors = np.transpose(initial_factors)
-    print("Initial Factors Shape", np.shape(initial_factors))
-    initial_factors = tf.convert_to_tensor(initial_factors, dtype=tf.float32)
-
-
-    return initial_factors
-
-
-
-
-
-
-
 
 
 def view_factors(base_directory, model, save_directory, iteration):
@@ -179,7 +123,7 @@ def view_factors(base_directory, model, save_directory, iteration):
     #grid_spec_1.tight_layout(figure_1)
 
     factor_weights = np.sum(factors, axis=0)
-    print("Factor Weights", np.shape(factor_weights))
+
     factor_weights_list_unsorted = np.copy(factor_weights)
     factor_weights_list_sorted = np.copy(factor_weights)
 
@@ -204,22 +148,13 @@ def view_factors(base_directory, model, save_directory, iteration):
             factor_image = Widefield_General_Functions.create_image_from_data(factor, indicies, image_height, image_width)
 
             axis = figure_1.add_subplot(grid_spec_1[row_index, column_index])
-            axis.imshow(factor_image, cmap='plasma', vmin=0, vmax=np.percentile(factor_image, 99))
+            #vmax=np.percentile(factor_image, 99)
+            axis.imshow(factor_image, cmap='plasma', vmin=0)
             axis.axis('off')
             factor_index += 1
 
     plt.savefig(os.path.join(save_directory, str(iteration).zfill(4) + ".png"))
     plt.close()
-
-
-
-
-
-
-    print("Factors", np.shape(factors))
-
-
-
 
 
 def compute_cosine_simmilarity(a, b):
@@ -236,26 +171,44 @@ def compute_cosine_simmilarity(a, b):
 
 
 
-def get_tensor_overlap(tensor):
 
-    number_of_factors = tensor.shape[0]
-    #overlap_matrix = np.zeros([number_of_factors, number_of_factors])
+def get_image_center_of_mass(weight_vector, y_coords_vector, x_coords_vector):
 
-    matrix_size = number_of_factors * number_of_factors
+    # Weight Coordinates
+    y_coords_vector = tf.math.multiply(y_coords_vector, weight_vector)
+    x_coords_vector = tf.math.multiply(x_coords_vector, weight_vector)
 
-    total_overlap = 0
-    for factor_1_index in range(number_of_factors):
-        factor_1_loadings = tensor[factor_1_index]
+    # Get Mean Coords
+    mean_y_pos = tf.math.reduce_sum(y_coords_vector)
+    mean_x_pos = tf.math.reduce_sum(x_coords_vector)
 
-        for factor_2_index in range(number_of_factors):
-            factor_2_loadings = tensor[factor_2_index]
+    # Normalise Back To 1
+    weight_sum = tf.math.reduce_sum(weight_vector)
+    mean_y_pos = tf.math.divide_no_nan(mean_y_pos, weight_sum)
+    mean_x_pos = tf.math.divide_no_nan(mean_x_pos, weight_sum)
 
-            if factor_1_index != factor_2_index:
-                factor_product = tf.math.multiply(factor_1_loadings, factor_2_loadings)
-                product_mean = tf.math.reduce_mean(factor_product)
-                total_overlap += (product_mean / matrix_size)
+    return mean_y_pos, mean_x_pos
 
-    return total_overlap
+
+def get_penalty_vector(y_center, x_center, radius, y_coordinate_vector, x_coordinate_vector):
+
+    ones_matrix = tf.ones(y_coordinate_vector.shape)
+    zeros_matrix = tf.zeros(y_coordinate_vector.shape)
+    penality_grid = tf.where(tf.math.sqrt(tf.math.square(y_coordinate_vector - y_center) + tf.math.square(x_coordinate_vector - x_center)) < radius, zeros_matrix, ones_matrix)
+    return penality_grid
+
+
+def view_factor(factor, indicies):
+    factor = np.array(factor)
+    template = np.zeros((600 * 608))
+    template[indicies] = factor
+    template = np.ndarray.reshape(template, (600, 608))
+    plt.imshow(template)
+    plt.savefig("/media/matthew/29D46574463D2856/Orthogonal_NMF/loss_functions/001.png")
+    plt.close()
+
+    return factor
+
 
 
 def get_tensor_sparsity(tensor):
@@ -268,8 +221,8 @@ def get_tensor_sparsity(tensor):
         non_zero_count = tf.math.count_nonzero(tensor[factor_index])
 
         # Get 100 Free Pixwla
-        non_zero_count = non_zero_count - 500
-        non_zero_count = tf.clip_by_value(non_zero_count, clip_value_min=0, clip_value_max=number_of_pixels)
+        #non_zero_count = non_zero_count - 500
+        #non_zero_count = tf.clip_by_value(non_zero_count, clip_value_min=0, clip_value_max=number_of_pixels)
 
         sparsity = non_zero_count / number_of_pixels
         mean_sparsity += (sparsity / number_of_factors)
@@ -279,32 +232,37 @@ def get_tensor_sparsity(tensor):
     return mean_sparsity
 
 
-def get_tensor_convex_hulls(tensor, height, width, indicies):
+def get_locality_loss(tensor, x_coordinate_vector, y_coordinate_vector, radius, indicies):
 
+    # Get Number of Factors
     number_of_factors = tensor.shape[0]
-    number_of_pixels = tensor.shape[1]
 
-    mean_area = 0
+    locality_penality = 0
     for factor_index in range(number_of_factors):
+
+        # Select Factor
         factor = tensor[factor_index]
-        area = tf.numpy_function(get_convex_hull, [factor, height, width, indicies], [tf.float32])[0]
 
-        # Get 5% Free
-        mean_area = mean_area - 0.05
-        mean_area = tf.clip_by_value(mean_area, clip_value_min=0, clip_value_max=1)
+        # Get Factor Centre of Mass
+        y_center, x_center = get_image_center_of_mass(factor, y_coordinate_vector, x_coordinate_vector)
 
-        mean_area += area / number_of_factors
+        # Get Penalty Vector
+        penalty_vector = get_penalty_vector(y_center, x_center, radius, y_coordinate_vector, x_coordinate_vector)
 
-    mean_area = tf.cast(mean_area, tf.float32)
+        # Get Penalty
+        factor_penalty = tf.math.multiply(factor, penalty_vector)
 
-    return mean_area
+        #cpf = tf.numpy_function(view_factor, [factor_penalty, indicies], tf.float32)
 
+        factor_penalty = tf.math.reduce_mean(factor_penalty)
+        locality_penality += factor_penalty / number_of_factors
 
+    return locality_penality
 
 class tensor_decomposition_model(keras.Model):
 
 
-    def __init__(self,  number_of_timepoints, number_of_factors, number_of_neurons, initial_weights, image_height, image_width, indicies, **kwargs):
+    def __init__(self,  number_of_timepoints, number_of_factors, number_of_neurons, initial_weights, image_height, image_width, indicies, y_coordinate_vector, x_coordinate_vector, **kwargs):
         super(tensor_decomposition_model, self).__init__(**kwargs)
 
         # Setup Variables
@@ -314,6 +272,8 @@ class tensor_decomposition_model(keras.Model):
         self.image_height = image_height
         self.image_width = image_width
         self.indicies = indicies
+        self.x_coordinate_vector = x_coordinate_vector
+        self.y_coordinate_vector = y_coordinate_vector
 
         # Create Weights
         initial_time_weights = tf.zeros([self.number_of_factors, self.number_of_timepoints])
@@ -324,13 +284,10 @@ class tensor_decomposition_model(keras.Model):
         self.reconstruction_loss_tracker = keras.metrics.Mean(name="reconstruction_loss")
 
 
-
-
     def reconstruct_matrix(self):
 
         # Create Empty Matrix To Hold Output
         reconstructed_matrix = tf.matmul(self.neuron_weights, self.time_weights)
-        print("reconstructed matrix", reconstructed_matrix.shape)
 
         # Return Reconstruced Matrix
         return reconstructed_matrix
@@ -347,9 +304,11 @@ class tensor_decomposition_model(keras.Model):
     def train_step(self, data):
 
         data = data[0]
-        print("Data shape", np.shape(data))
 
         with tf.GradientTape() as tape:
+
+            # Clip Weights To Be Between 0 and 1
+            self.neuron_weights.assign(tf.clip_by_value(self.neuron_weights, clip_value_min=0, clip_value_max=1))
 
             # Reconstruct Matrix
             reconstruction = self.reconstruct_matrix()
@@ -363,19 +322,18 @@ class tensor_decomposition_model(keras.Model):
             factors = tf.transpose(self.neuron_weights)
             overlap_error = compute_cosine_simmilarity(factors, factors)
 
-            # Add Sparsity Error
+            # Add Sparisty Loss
             sparsity_loss = get_tensor_sparsity(factors)
-           # sparsity_loss = get_tensor_convex_hulls(factors, self.image_height, self.image_width, self.indicies)
 
-            print("Reconstruction error", reconstruction_error)
-            print("Overlap error", overlap_error)
-            print("Sparsity Loss", sparsity_loss)
+            # Add Locality Loss
+            locality_loss = get_locality_loss(factors, self.x_coordinate_vector, self.y_coordinate_vector, 100, self.indicies)
 
             # Scale Losses
             total_loss = 0
             total_loss += 1 * reconstruction_error
             total_loss += 1 * overlap_error
-            total_loss += 100000 * sparsity_loss
+            total_loss += 1 * sparsity_loss
+            total_loss += 1000000 * locality_loss
 
 
         # Get Gradients
@@ -419,8 +377,20 @@ def create_model(base_directory, number_of_factors, sample_size, initial_factors
     # Load Mask Details
     indicies, image_height, image_width = Widefield_General_Functions.load_mask(base_directory)
 
+    # Create Coordinate Vectors For Spatial Loss Functions
+    y_coordinate_vector, x_coordinate_vector = create_coordinate_vectors(indicies, image_height, image_width)
+
+    """
+    for x in range(100):
+        tempalte = np.zeros((image_height*image_width))
+        tempalte[indicies] = initial_factors[:, x]
+        tempalte = np.ndarray.reshape(tempalte, (image_height, image_width))
+        plt.imshow(tempalte)
+        plt.show()
+    """
+
     # Create Model
-    model = tensor_decomposition_model(sample_size, number_of_factors, number_of_neurons, initial_factors, image_height, image_width, indicies)
+    model = tensor_decomposition_model(sample_size, number_of_factors, number_of_neurons, initial_factors, image_height, image_width, indicies, y_coordinate_vector, x_coordinate_vector)
     model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.1))
 
     # Load Delta F Sample
@@ -440,13 +410,19 @@ def create_model(base_directory, number_of_factors, sample_size, initial_factors
 
     return model
 
+
 def train_model(base_directory, sample_size):
 
     # Load Delta F Matrix
     delta_f_matrix_filepath = os.path.join(base_directory, "Delta_F.h5")
     delta_f_matrix_container = tables.open_file(delta_f_matrix_filepath, mode='r')
     delta_f_matrix = delta_f_matrix_container.root['Data']
-    print("Delta F Matrix", np.shape(delta_f_matrix))
+
+
+
+    # Get Coordinate Vectors
+
+
 
     # Load Delta F Sample
     number_of_timepoints = np.shape(delta_f_matrix)[0]
@@ -463,7 +439,7 @@ def train_model(base_directory, sample_size):
     delta_f_array = [delta_f_sample]
     delta_f_array = np.array(delta_f_array).astype('float32')
     delta_f_array = tf.convert_to_tensor(delta_f_array)
-    print("Delta F Sample", delta_f_array.shape)
+
 
     # Fit Model
     model.fit([delta_f_array], epochs=200, batch_size=1)
@@ -492,6 +468,9 @@ plot_save_directory = "/media/matthew/29D46574463D2856/Orthogonal_NMF/Plots"
 
 initial_factors = seed_initial_regions_grid(session_list[0])
 number_of_factors = np.shape(initial_factors)[1]
+print("Initial Factors Shape", np.shape(initial_factors))
+
+
 
 #number_of_factors = 100
 #initial_factors = tf.random.uniform(shape=[174519, number_of_factors], maxval=1, minval=0)
@@ -505,18 +484,23 @@ number_of_sessions = len(session_list)
 iteration = 0
 for x in range(100):
     for session in session_list:
-        print("Iteration: ", iteration)
 
         # Train Model
-        model = train_model(session, sample_size)
-        model.time_weights = tf.zeros([model.number_of_factors, model.number_of_timepoints])
+        for x in range(100):
+            print("Iteration: ", iteration)
 
-        # View Factors
-        view_factors(session, model, plot_save_directory, iteration)
+            # View Factors
+            view_factors(session, model, plot_save_directory, iteration)
 
-        # Save Model
-        model.save(model_save_directory)
+            # Increment Iteration
+            iteration += 1
 
-        # Increment Iteration
-        iteration += 1
+            model = train_model(session, sample_size)
+            #model.time_weights = tf.zeros([model.number_of_factors, model.number_of_timepoints])
+
+            # View Factors
+            view_factors(session, model, plot_save_directory, iteration)
+
+            # Save Model
+            model.save(model_save_directory)
 

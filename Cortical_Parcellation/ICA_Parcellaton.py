@@ -22,6 +22,27 @@ sys.path.append("/home/matthew/Documents/Github_Code/Widefield_Preprocessing")
 import Widefield_General_Functions
 
 
+
+
+def smooth_data(base_directory, data_sample):
+
+    # Load Mask Details
+    indicies, image_height, image_width = Widefield_General_Functions.load_mask(base_directory)
+
+    smoothed_sample = []
+    for frame in data_sample:
+        template = np.zeros((image_height * image_width))
+        template[indicies] = frame
+        template = np.ndarray.reshape(template, (image_height, image_width))
+        template = scipy.ndimage.gaussian_filter(template, sigma=1)
+        template = np.ndarray.reshape(template, image_height * image_width)
+        template_data = template[indicies]
+        smoothed_sample.append(template_data)
+
+    smoothed_sample = np.array(smoothed_sample)
+    return smoothed_sample
+
+
 def perform_ica(base_directory):
 
     # Load Delta F Matrix
@@ -45,20 +66,25 @@ def perform_ica(base_directory):
         activity_sample.append(delta_f_matrix[index])
     activity_sample = np.array(activity_sample)
 
+    #activity_sample = smooth_data(base_directory, activity_sample)
+
     # Perform ICA
-    number_of_components = 20
-    model = LatentDirichletAllocation(n_components=number_of_components)
+    number_of_components = 25
+    model = FastICA(n_components=number_of_components)
     model.fit(activity_sample)
     components = model.components_
 
     # View Components
     figure_1 = plt.figure()
-    for x in range(20):
+    rows = 5
+    columns = 5
+    for x in range(number_of_components):
         component = components[x]
         image = Widefield_General_Functions.create_image_from_data(component, indicies, image_height, image_width)
-        image_magnitude = np.max(np.abs(image))
-        subplot = figure_1.add_subplot(4, 5, x + 1)
-        subplot.imshow(image, cmap='bwr', vmax=image_magnitude, vmin=-1 * image_magnitude)
+        image_magnitude = np.max(image)
+        subplot = figure_1.add_subplot(rows, columns, x + 1)
+        subplot.axis('off')
+        subplot.imshow(image, cmap='jet', vmax=image_magnitude, vmin=0)
 
     plt.show()
 

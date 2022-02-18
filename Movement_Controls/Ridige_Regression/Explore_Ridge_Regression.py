@@ -47,18 +47,23 @@ def create_cortical_image_from_vector(indicies, image_height, image_width, vecto
 
 def view_regresssion_coefficients(base_directory):
 
+    # Visual Stimuli = 0 - 100
+    # running = 100
+    # bodycam = 100 - 120
+
     # Load Mask Details
     indicies, image_height, image_width = Widefield_General_Functions.load_mask(base_directory)
 
     # Load Weights
-    regression_directory = os.path.join(base_directory, "Ridge_Regression")
+    regression_directory = os.path.join(base_directory, "Movement_Controls", "Ridge_Regression")
     coefficients = np.load(os.path.join(regression_directory, "Coefficients.npy"))
     intercepts = np.load(os.path.join(regression_directory, "Intercepts.npy"))
 
     print("Coefficients Shape", np.shape(coefficients))
     condition_1_coefs = coefficients[:, 0:50]
     condition_2_coefs = coefficients[:,50:100]
-    running_coefs = coefficients[: -1]
+    running_coefs = coefficients[: 100]
+    bodycam_coefs = coefficients[:, 101:]
 
 
     figure_1 = plt.figure()
@@ -96,60 +101,32 @@ def view_regresssion_coefficients(base_directory):
         plt.pause(0.1)
         plt.clf()
 
+    # View Other Regressors
+    bodycam_components = np.load(os.path.join(regression_directory, "Ridge_Regression_Bodycam_Components.npy"))
 
-    """
-    number_of_predictors = np.shape(weights)[1]
 
-    # Visual_stimuli
-    plt.ion()
-    for timepoint in range(trial_length):
-        vis_stim_map \
-            = create_image_from_data(weights[:, timepoint], image_height, image_width, indicies)
-        plt.title("Visual: " + str(timepoint))
-        plt.imshow(vis_stim_map, cmap='inferno', vmin=0)
-        plt.draw()
-        plt.pause(0.1)
-        plt.clf()
+    print("Bodycam Coeffs", np.shape(bodycam_coefs))
+    number_of_bodycam_coefficients = np.shape(bodycam_coefs)[1]
     plt.ioff()
-
-
-    # Lick = 0
-    lick_map = create_image_from_data(weights[:, trial_length], image_height, image_width, indicies)
-    plt.title("Lick")
-    plt.imshow(lick_map, cmap='bwr')
-    plt.show()
-
-    # Running = 1
-    running_map = create_image_from_data(weights[:, trial_length + 1], image_height, image_width, indicies)
-    plt.title("Running")
-    plt.imshow(running_map, cmap='bwr')
-    plt.show()
-
-    # Visualise_Video_Contributions
-    mousecam_components = np.load(save_directory + "/Mousecam_SVD_Components.npy")
-
-    mousecam_component = 0
-    for predictor in range(trial_length + 2, number_of_predictors):
+    for bodycam_coefficient_index in range(number_of_bodycam_coefficients):
 
         figure_1 = plt.figure()
-        widefield_axis = figure_1.add_subplot(1,2,1)
-        mousecam_axis = figure_1.add_subplot(1,2,2)
+        coefficient_axis = figure_1.add_subplot(1,2,1)
+        component_axis = figure_1.add_subplot(1,2,2)
 
-        # Create Regression Map
-        weight_map = create_image_from_data(weights[:,  predictor], image_height, image_width, indicies)
+        coefficient = bodycam_coefs[:, bodycam_coefficient_index]
+        coefficient_image = create_cortical_image_from_vector(indicies, image_height, image_width, coefficient)
 
-        # Create Bodycam Image
-        bodycam_image = mousecam_components[mousecam_component]
-        bodycam_image = np.reshape(bodycam_image, (480, 640))
+        component = bodycam_components[bodycam_coefficient_index]
+        component_image = np.reshape(component, (480, 640))
 
-        plt.title("Bodycam Component: " + str(mousecam_component))
-
-        widefield_axis.imshow(weight_map, cmap='bwr')
-        mousecam_axis.imshow(abs(bodycam_image), cmap='jet', vmin=0)
+        coefficient_axis.imshow(coefficient_image, cmap='jet', vmin=0)
+        component_axis.imshow(component_image, cmap='jet', vmin=0)
         plt.show()
 
-        mousecam_component += 1
-    """
+
+
+
 
 controls = ["/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK14.1A/2021_06_17_Transition_Imaging",
             "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK7.1B/2021_04_02_Transition_Imaging",
@@ -163,4 +140,4 @@ mutants =  ["/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition
             "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK12.1F/2021_09_22_Transition_Imaging",
             "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NRXN71.2A/2020_12_17_Switching_Imaging"]
 
-view_regresssion_coefficients(mutants[4])
+view_regresssion_coefficients(controls[0])

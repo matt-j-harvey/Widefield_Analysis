@@ -42,13 +42,6 @@ def match_mousecam_to_widefield_frames(base_directory):
     # Get Number of Frames
     number_of_widefield_frames = len(widefield_frame_time_keys)
 
-    # Invert
-    print("Widefield Frame Time Keys", list(widefield_frame_times.keys())[0:10])
-    print("Widefield Frame Times Values", list(widefield_frame_times.values())[0:10])
-    print("Mousecam Frame Times Keys", list(mousecam_frame_times.keys())[0:10])
-    print("Mousecam Frame Times Values", list(mousecam_frame_times.values())[0:10])
-
-
     # Dictionary - Keys are Widefield Frame Indexes, Values are Closest Mousecam Frame Indexes
     widfield_to_mousecam_frame_dict = {}
 
@@ -62,3 +55,23 @@ def match_mousecam_to_widefield_frames(base_directory):
     # Save Directory
     save_directoy = os.path.join(base_directory, "Stimuli_Onsets", "widfield_to_mousecam_frame_dict.npy")
     np.save(save_directoy, widfield_to_mousecam_frame_dict)
+
+
+
+controls = ["/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK14.1A/2021_06_17_Transition_Imaging",
+            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK7.1B/2021_04_02_Transition_Imaging",
+            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK4.1B/2021_04_10_Transition_Imaging",
+            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NRXN78.1A/2020_12_09_Switching_Imaging",
+            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NRXN78.1D/2020_11_29_Switching_Imaging"]
+
+mutants =  ["/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK4.1A/2021_04_12_Transition_Imaging",
+            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK16.1B/2021_07_08_Transition_Imaging",
+            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK10.1A/2021_06_18_Transition_Imaging",
+            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK12.1F/2021_09_22_Transition_Imaging",
+            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NRXN71.2A/2020_12_17_Switching_Imaging"]
+
+all_mice = controls + mutants
+
+for base_directory in all_mice:
+    print("Base Diretory: ", base_directory)
+    match_mousecam_to_widefield_frames(base_directory)

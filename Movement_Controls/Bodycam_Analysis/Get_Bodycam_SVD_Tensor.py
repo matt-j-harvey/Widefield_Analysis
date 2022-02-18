@@ -233,7 +233,7 @@ def load_onsets(base_directory, onsets_file_list):
     for onsets_file in onsets_file_list:
         print(onsets_file_list)
         print(onsets_file)
-        onsets_file_contents = np.load(os.path.join(base_directory, "Stimuli_Onsets", onsets_file))
+        onsets_file_contents = np.load(os.path.join(base_directory, "Stimuli_Onsets", onsets_file + "_onsets.npy"))
         for onset in onsets_file_contents:
             onsets.append(onset)
     print("Number_of_trails: ", len(onsets))
@@ -284,10 +284,44 @@ def get_bodycam_tensor(base_directory, video_file, onsets_file_list, start_windo
 
 
 
-base_directory = r"/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK14.1A/2021_06_17_Transition_Imaging"
-start_window = -10
-stop_window = 40
-onset_files = [["visual_context_stable_vis_2_onsets.npy"], ["odour_context_stable_vis_2_onsets.npy"]]
-tensor_names = ["Vis_2_Stable_Visual", "Vis_2_Stable_Odour"]
-video_file = "NXAK14.1A_2021-06-17-14-30-28_cam_1.mp4"
-get_bodycam_tensor(base_directory, video_file, onset_files[0], start_window, stop_window, number_of_components=20)
+def get_bodycam_tensor_multiple_conditions(base_directory, video_file, condition_1_onsets_file_list, condition_2_onsets_file_list, start_window, stop_window, number_of_components=20):
+
+    # This code will extract the bodycam video around a number of trials and perform SVD on this data
+    # Onsets File - should be a numpy array which contains the bodycam frame index at the start of each trial
+    # Start Window - how many bodycam frames to include from before trial start
+    # Stop Window - how many bodycam frames to include from after trial start
+    # Video File - full file path to video file
+
+    # Load Widefield Frame Indexes of Trial Starts
+    condition_1_onsets = load_onsets(base_directory, condition_1_onsets_file_list)
+    condition_2_onsets = load_onsets(base_directory, condition_2_onsets_file_list)
+    onsets = condition_1_onsets + condition_2_onsets
+
+    # Convert Widefield Frames Into Mousecam Frames
+    onsets = convert_widefield_onsets_into_mousecam_onsets(base_directory, onsets)
+
+    # Load Video Data Into A Tensor Of Shape (N_trials , Trial Length, Image Height, Image Width)
+    mousecam_tensor = create_mousecam_tensor(base_directory, video_file, onsets, start_window-1, stop_window)
+
+    #Get "Motion Energy" - (Absolute Value Of THe Difference Between Subsequent Frames)
+    mousecam_tensor = get_motion_energy(mousecam_tensor, visualise=False)
+
+    # Perform SVD on Video To Decompose It Into A number of components and loadings of these components over time
+    transformed_data, components = perform_svd_on_video(mousecam_tensor, number_of_components=number_of_components)
+
+    # View These Mousecam Components For A Sanity Check
+    visualise_mousecam_components(components, base_directory, video_file)
+
+
+    # Split Combined Tensor
+    number_of_condition_1_trials = len(condition_1_onsets)
+    number_of_condition_2_trials = len(condition_2_onsets)
+    condition_1_bodycam_tensor = transformed_data[0:number_of_condition_1_trials]
+    condition_2_bodycam_tensor = transformed_data[number_of_condition_1_trials:]
+
+    print("Number of condition 1 trials", number_of_condition_1_trials)
+    print("Number of cobdition 2 trials", number_of_condition_2_trials)
+    print("Condition 1 bodycam tensor", np.shape(condition_1_bodycam_tensor))
+    print("Condition 2 bodycam tensor", np.shape(condition_2_bodycam_tensor))
+
+    return condition_1_bodycam_tensor, condition_2_bodycam_tensor, components

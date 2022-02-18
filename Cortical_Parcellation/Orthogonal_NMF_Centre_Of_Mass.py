@@ -421,7 +421,7 @@ def create_model(base_directory, number_of_factors, sample_size, initial_factors
 
     # Create Model
     model = tensor_decomposition_model(sample_size, number_of_factors, number_of_neurons, initial_factors, image_height, image_width, indicies)
-    model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.1))
+    model.compile(optimizer=keras.optimizers.SGD(learning_rate=0.01))
 
     # Load Delta F Sample
     number_of_timepoints = np.shape(delta_f_matrix)[0]

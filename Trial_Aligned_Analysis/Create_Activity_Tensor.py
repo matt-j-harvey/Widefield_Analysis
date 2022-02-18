@@ -16,11 +16,35 @@ from scipy.interpolate import interp1d
 import sys
 from sklearn.linear_model import LinearRegression
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+import h5py
 
 sys.path.append("/home/matthew/Documents/Github_Code/Widefield_Preprocessing")
 
 import Widefield_General_Functions
 
+
+
+def spatially_smooth_activity_tensor(base_directory, activity_tensor, sigma):
+
+    # Get Tensor Shape
+    number_of_trials = np.shape(activity_tensor)[0]
+    number_of_timepoints = np.shape(activity_tensor)[1]
+
+
+    # Load Mask
+    indicies, image_height, image_width = Widefield_General_Functions.load_mask(base_directory)
+
+    for trial_index in range(number_of_trials):
+        for time_index in range(number_of_timepoints):
+
+            timepoint_data = activity_tensor[trial_index, time_index]
+            timepoint_image = Widefield_General_Functions.create_image_from_data(timepoint_data, indicies, image_height, image_width)
+            timepoint_image = ndimage.gaussian_filter(timepoint_image, sigma=sigma)
+            timepoint_image = np.ndarray.reshape(timepoint_image, (image_height * image_width))
+            timepoint_data = timepoint_image[indicies]
+            activity_tensor[trial_index, time_index] = timepoint_data
+
+    return activity_tensor
 
 def get_activity_tensor(activity_matrix, onsets, start_window, stop_window):
 
@@ -121,7 +145,7 @@ def correct_running_activity_tensor(base_directory, onsets, trial_start, trial_s
 
 
 
-def create_activity_tensor(base_directory, onsets_file_list, trial_start, trial_stop, tensor_name, running_correction=False):
+def create_activity_tensor_tables(base_directory, onsets_file_list, trial_start, trial_stop, tensor_name, running_correction=False, spatial_smoothing=False, smoothing_sd=2):
     print(base_directory)
 
 
@@ -143,6 +167,11 @@ def create_activity_tensor(base_directory, onsets_file_list, trial_start, trial_
     # Create Trial Tensor
     activity_tensor = get_activity_tensor(delta_f_matrix, onsets, trial_start, trial_stop)
 
+    # Smooth if required
+    if spatial_smoothing == True:
+        activity_tensor = spatially_smooth_activity_tensor(base_directory, activity_tensor, sigma=smoothing_sd)
+
+
     # Save Tensors
     save_directory = os.path.join(base_directory, "Activity_Tensors")
     if not os.path.exists(save_directory):
@@ -155,6 +184,70 @@ def create_activity_tensor(base_directory, onsets_file_list, trial_start, trial_
         np.save(os.path.join(save_directory, tensor_name + "_Corrected_Tensor.npy"), corrected_tensor)
     else:
         np.save(os.path.join(save_directory, tensor_name + "_Activity_Tensor.npy"), activity_tensor)
+
+
+
+
+def create_activity_tensor(base_directory, onsets_file_list, trial_start, trial_stop, tensor_name, running_correction=False, spatial_smoothing=False, smoothing_sd=2):
+    print(base_directory)
+
+
+    # Load Delta F Matrix
+    delta_f_matrix_filepath = os.path.join(base_directory, "Delta_F_Registered.hdf5")
+    delta_f_matrix_container = h5py.File(delta_f_matrix_filepath, 'r')
+    delta_f_matrix = delta_f_matrix_container['Data']
+
+    # Load Onsets
+    onsets = []
+    for onsets_file in onsets_file_list:
+        print(onsets_file_list)
+        print(onsets_file)
+        onsets_file_contents = np.load(os.path.join(base_directory, "Stimuli_Onsets", onsets_file))
+        for onset in onsets_file_contents:
+            onsets.append(onset)
+    print("Number_of_trails: ", len(onsets))
+
+    # Create Trial Tensor
+    activity_tensor = get_activity_tensor(delta_f_matrix, onsets, trial_start, trial_stop)
+
+    # Smooth if required
+    if spatial_smoothing == True:
+        activity_tensor = spatially_smooth_activity_tensor(base_directory, activity_tensor, sigma=smoothing_sd)
+
+
+    # Save Tensors
+    save_directory = os.path.join(base_directory, "Activity_Tensors")
+    if not os.path.exists(save_directory):
+        os.mkdir(save_directory)
+
+    if running_correction == True:
+        predicted_tensor, corrected_tensor = correct_running_activity_tensor(base_directory, onsets, trial_start, trial_stop, activity_tensor)
+        np.save(os.path.join(save_directory, tensor_name + "_Activity_Tensor.npy"), activity_tensor)
+        np.save(os.path.join(save_directory, tensor_name + "_Predicted_Tensor.npy"), predicted_tensor)
+        np.save(os.path.join(save_directory, tensor_name + "_Corrected_Tensor.npy"), corrected_tensor)
+    else:
+        np.save(os.path.join(save_directory, tensor_name + "_Activity_Tensor.npy"), activity_tensor)
+
+
+
+
+def get_region_activity(tensor, region_map, selected_regions):
+
+    # Create Binary Map
+    binary_map = np.isin(region_map, selected_regions)
+
+    # Get Region Indicies
+    region_indicies = np.argwhere(binary_map)
+
+    # Get Region Traces
+    region_tensor = tensor[:, :, region_indicies]
+
+    # Get Mean Trace
+    region_mean = np.mean(region_tensor, axis=2)
+
+    return region_mean
+
+
 
 
 

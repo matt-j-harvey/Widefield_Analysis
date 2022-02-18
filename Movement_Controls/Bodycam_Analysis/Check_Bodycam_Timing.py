@@ -243,10 +243,3 @@ def check_mousecam_timings(base_directory, video_file, onsets_file_list, start_w
 
 
 
-base_directory = r"/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK14.1A/2021_06_17_Transition_Imaging"
-start_window = -1
-stop_window = 4
-onset_files = [["visual_context_stable_vis_2_onsets.npy"], ["odour_context_stable_vis_2_onsets.npy"]]
-tensor_names = ["Vis_2_Stable_Visual", "Vis_2_Stable_Odour"]
-video_file = "NXAK14.1A_2021-06-17-14-30-28_cam_1.mp4"
-check_mousecam_timings(base_directory, video_file, onset_files[0], start_window, stop_window)

@@ -10,6 +10,10 @@ import cv2
 from sklearn.decomposition import TruncatedSVD
 from pathlib import Path
 import joblib
+import sys
+
+sys.path.append("/home/matthew/Documents/Github_Code/Widefield_Analysis/Movement_Controls/Bodycam_Analysis")
+import Get_Bodycam_SVD_Tensor
 
 def factor_number(number_to_factor):
 
@@ -566,35 +570,38 @@ def get_activity_tensor(activity_matrix, onsets, start_window, stop_window):
 
 
 
-def create_design_matrix(activity_matrix, running_regressors, visual_stimuli_regressors):
+def create_design_matrix(activity_matrix, running_regressors, visual_stimuli_regressors, bodycam_regressors):
 
     # Get Data Details
     number_of_trials = np.shape(running_regressors)[0]
     trial_length = np.shape(running_regressors)[1]
     number_of_datapoints = number_of_trials * trial_length
-
     number_of_pixels = np.shape(activity_matrix)[2]
+    number_of_bodycam_components = np.shape(bodycam_regressors)[2]
 
     # Reshape Each Feature from [Trials x Length x Features] to [Timepoints, Features]
     activity_matrix = np.ndarray.reshape(activity_matrix, (number_of_datapoints, number_of_pixels))
     running_regressors = np.ndarray.reshape(running_regressors, (number_of_datapoints, 1))
     visual_stimuli_regressors = np.ndarray.reshape(visual_stimuli_regressors, (number_of_datapoints, trial_length*2))
+    bodycam_regressors = np.ndarray.reshape(bodycam_regressors, (number_of_datapoints, number_of_bodycam_components))
+
     print("Reshaped Activity Matrix Shape", np.shape(activity_matrix))
     print("Reshaped Running Regressors", np.shape(running_regressors))
     print("Visual Simuli Regressors", np.shape(visual_stimuli_regressors))
+    print("Bodycam Regressors", np.shape(bodycam_regressors))
 
     #Combine These Into A Single Matrix
-    design_matrix = np.concatenate([running_regressors, visual_stimuli_regressors], axis=1)
+    design_matrix = np.concatenate([running_regressors, visual_stimuli_regressors, bodycam_regressors], axis=1)
     print("Design Matrix", np.shape(design_matrix))
 
     return activity_matrix, design_matrix
 
 
-def perform_ridge_regression(base_directory, onset_lists, trial_start, trial_stop, activity_tensor_list, stimuli_list):
+def perform_ridge_regression(base_directory, onset_lists, start_window, stop_window, activity_tensor_list, stimuli_list, video_file):
 
     # Load Onsets
-    condition_1_onsets = np.load(os.path.join(base_directory, "Stimuli_Onsets", onset_lists[0] + "_frame_onsets.npy"))
-    condition_2_onsets = np.load(os.path.join(base_directory, "Stimuli_Onsets", onset_lists[1] + "_frame_onsets.npy"))
+    condition_1_onsets = np.load(os.path.join(base_directory, "Stimuli_Onsets", onset_lists[0] + "_onsets.npy"))
+    condition_2_onsets = np.load(os.path.join(base_directory, "Stimuli_Onsets", onset_lists[1] + "_onsets.npy"))
     print("Condition 1 trials", len(condition_1_onsets))
     print("COndition 2 trials", len(condition_2_onsets))
 
@@ -604,29 +611,33 @@ def perform_ridge_regression(base_directory, onset_lists, trial_start, trial_sto
     delta_f_matrix = delta_f_matrix_container.root['Data']
 
     # Get Activity Tensors
-    condition_1_activity_tensor = get_activity_tensor(delta_f_matrix, condition_1_onsets, trial_start, trial_stop)
-    condition_2_activity_tensor = get_activity_tensor(delta_f_matrix, condition_2_onsets, trial_start, trial_stop)
+    condition_1_activity_tensor = get_activity_tensor(delta_f_matrix, condition_1_onsets, start_window, stop_window)
+    condition_2_activity_tensor = get_activity_tensor(delta_f_matrix, condition_2_onsets, start_window, stop_window)
+
+    # Get Mousecam Tensors
+    condition_1_bodycam_tensor, condition_2_bodycam_tensor, bodycam_components = Get_Bodycam_SVD_Tensor.get_bodycam_tensor_multiple_conditions(base_directory, video_file, [onset_lists[0]], [onset_lists[1]], start_window, stop_window)
 
     # Get Running Tensors
-    downsampled_running_trace = np.load(os.path.join(base_directory, "Downsampled_Running_Trace.npy"))
-    condition_1_running_tensor = create_running_tensor(condition_1_onsets, trial_start, trial_stop, downsampled_running_trace)
-    condition_2_running_tensor = create_running_tensor(condition_2_onsets, trial_start, trial_stop, downsampled_running_trace)
+    downsampled_running_trace = np.load(os.path.join(base_directory, "Movement_Controls", "Downsampled_Running_Trace.npy"))
+    condition_1_running_tensor = create_running_tensor(condition_1_onsets, start_window, stop_window, downsampled_running_trace)
+    condition_2_running_tensor = create_running_tensor(condition_2_onsets, start_window, stop_window, downsampled_running_trace)
 
     # Create Visual Stimuli Regressors
-    condition_1_stimuli_regressors = create_visual_stimuli_regressors(condition_1_onsets, trial_start, trial_stop, base_directory, stimuli_list[0], 1)
-    condition_2_stimuli_regressors = create_visual_stimuli_regressors(condition_2_onsets, trial_start, trial_stop, base_directory, stimuli_list[1], 2)
+    condition_1_stimuli_regressors = create_visual_stimuli_regressors(condition_1_onsets, start_window, stop_window, base_directory, stimuli_list[0], 1)
+    condition_2_stimuli_regressors = create_visual_stimuli_regressors(condition_2_onsets, start_window, stop_window, base_directory, stimuli_list[1], 2)
 
     # Stack The Two Conditions Ontop Of Eachother
     activity_matrix = np.vstack([condition_1_activity_tensor, condition_2_activity_tensor])
     visual_stimuli_regressors = np.vstack([condition_1_stimuli_regressors, condition_2_stimuli_regressors])
     running_regressors = np.vstack([condition_1_running_tensor, condition_2_running_tensor])
+    bodycam_regresssors = np.vstack([condition_1_bodycam_tensor, condition_2_bodycam_tensor])
 
     print("Combined Activity Tensors", np.shape(activity_matrix))
     print("Combined Stimuli Regressors", np.shape(visual_stimuli_regressors))
     print("Combined Running Regressors", np.shape(running_regressors))
 
     # Create Design Matrix
-    activity_matrix, design_matrix = create_design_matrix(activity_matrix, running_regressors, visual_stimuli_regressors)
+    activity_matrix, design_matrix = create_design_matrix(activity_matrix, running_regressors, visual_stimuli_regressors, bodycam_regresssors)
 
     # Remove NaNs
     activity_matrix = np.nan_to_num(activity_matrix)
@@ -640,18 +651,19 @@ def perform_ridge_regression(base_directory, onset_lists, trial_start, trial_sto
     coefficients = model.coef_
     intercepts = model.intercept_
 
-    save_directory = os.path.join(base_directory, "Ridge_Regression")
+    save_directory = os.path.join(base_directory, "Movement_Controls", "Ridge_Regression")
     if not os.path.exists(save_directory):
         os.mkdir(save_directory)
 
     np.save(os.path.join(save_directory, "Coefficients.npy"), coefficients)
     np.save(os.path.join(save_directory, "Intercepts.npy"), intercepts)
+    np.save(os.path.join(save_directory, "Ridge_Regression_Bodycam_Components.npy"), bodycam_components)
 
 
-#"/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK14.1A/2021_06_17_Transition_Imaging"
-#"/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK7.1B/2021_04_02_Transition_Imaging"
 
-controls = [
+
+controls = ["/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK14.1A/2021_06_17_Transition_Imaging",
+            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK7.1B/2021_04_02_Transition_Imaging",
             "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK4.1B/2021_04_10_Transition_Imaging",
             "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NRXN78.1A/2020_12_09_Switching_Imaging",
             "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NRXN78.1D/2020_11_29_Switching_Imaging"]
@@ -668,5 +680,7 @@ activity_tensor_list = ["Vis_2_Stable_Visual",  "Vis_2_Stable_Odour"]
 start_window = -10
 stop_window = 40
 stimuli_list = ["Visual 2", "Visual 2"]
+video_file = "NXAK14.1A_2021-06-17-14-30-28_cam_1.mp4"
 for base_directory in all_mice:
-    perform_ridge_regression(base_directory, onsets_list, start_window, stop_window, activity_tensor_list, stimuli_list)
+    perform_ridge_regression(base_directory, onsets_list, start_window, stop_window, activity_tensor_list, stimuli_list, video_file)
+    print("Ridge Regression Complete")
