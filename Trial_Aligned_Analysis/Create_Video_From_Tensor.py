@@ -897,24 +897,16 @@ def create_generic_comparison_video_behaviour(base_directory, mean_activity_tens
 
 
 
-
-
-
-
-
-
-def create_single_mouse_comparison_video(base_directory, tensor_filenames, trial_start, trial_stop, plot_titles, save_directory):
+def create_generic_comparison_video(base_directory, mean_activity_tensor_list, trial_start, trial_stop, plot_titles, save_directory):
 
     # Get Region Boundaries
     #masked_atlas, atlas_indicies = add_region_boundaries(base_directory)
 
     # Load Tensors
-    condition_1_activity_tensor = np.load(os.path.join(base_directory, "Activity_Tensors", tensor_filenames[0] + "_Activity_Tensor.npy"))
-    condition_1_activity_mean = np.mean(condition_1_activity_tensor, axis=0)
+    condition_1_activity_mean = mean_activity_tensor_list[0]
     condition_1_activity_tensor = reconstruct_images_from_activity(condition_1_activity_mean, base_directory)
 
-    condition_2_activity_tensor = np.load(os.path.join(base_directory, "Activity_Tensors", tensor_filenames[1] + "_Activity_Tensor.npy"))
-    condition_2_activity_mean = np.mean(condition_2_activity_tensor, axis=0)
+    condition_2_activity_mean = mean_activity_tensor_list[1]
     condition_2_activity_tensor = reconstruct_images_from_activity(condition_2_activity_mean, base_directory)
 
     # Plot

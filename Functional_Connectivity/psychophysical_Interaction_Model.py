@@ -182,8 +182,8 @@ def perform_ppi_analysis(base_directory, tensor_names, onset_names, region_dicti
 
     # Load All Regions
     pixel_assignment_image = np.load(os.path.join(base_directory, "Pixel_Assignmnets_Image.npy"))
-    plt.imshow(pixel_assignment_image)
-    plt.show()
+    #plt.imshow(pixel_assignment_image)
+    #plt.show()
 
     # Select Regions
     region_map = np.load(os.path.join(base_directory, "Pixel_Assignmnets.npy"))

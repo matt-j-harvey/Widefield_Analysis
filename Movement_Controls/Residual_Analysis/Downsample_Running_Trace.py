@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
 import os
-import tables
+import h5py
 import sys
 
 sys.path.append("/home/matthew/Documents/Github_Code/Widefield_Preprocessing")
@@ -25,7 +25,7 @@ def ResampleLinear1D(original, targetLen):
     return interp
 
 
-def downsample_running_trace(base_directory, sanity_check):
+def downsample_running_trace(base_directory, sanity_check=True):
     print(base_directory)
 
     # Load Frame Times
@@ -38,9 +38,9 @@ def downsample_running_trace(base_directory, sanity_check):
     running_trace = ai_data[8]
 
     # Load Delta F Matrix
-    delta_f_matrix_filepath = os.path.join(base_directory, "Delta_F.h5")
-    delta_f_matrix_container = tables.open_file(delta_f_matrix_filepath, mode='r')
-    delta_f_matrix = delta_f_matrix_container.root['Data']
+    delta_f_matrix_filepath = os.path.join(base_directory, "Delta_F_Registered.hdf5")
+    delta_f_matrix_container = h5py.File(delta_f_matrix_filepath, 'r')
+    delta_f_matrix = delta_f_matrix_container['Data']
 
     # Get Data Structure
     number_of_timepoints = np.shape(delta_f_matrix)[0]

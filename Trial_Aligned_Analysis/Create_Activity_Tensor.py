@@ -19,9 +19,10 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import h5py
 
 sys.path.append("/home/matthew/Documents/Github_Code/Widefield_Preprocessing")
+sys.path.append("/home/matthew/Documents/Github_Code/Widefield_Analysis/Movement_Controls/Residual_Analysis")
 
 import Widefield_General_Functions
-
+import Get_Running_Linear_Regression_Coefficients
 
 
 def spatially_smooth_activity_tensor(base_directory, activity_tensor, sigma):
@@ -45,6 +46,7 @@ def spatially_smooth_activity_tensor(base_directory, activity_tensor, sigma):
             activity_tensor[trial_index, time_index] = timepoint_data
 
     return activity_tensor
+
 
 def get_activity_tensor(activity_matrix, onsets, start_window, stop_window):
 
@@ -78,13 +80,11 @@ def get_onsets(base_directory, onsets_file_list):
     return onsets
 
 
-
-def correct_running_activity_tensor(base_directory, onsets, trial_start, trial_stop, activity_tensor, display=False):
+"""
+def correct_running_activity_tensor(base_directory, onsets, trial_start, trial_stop, activity_tensor, running_coefficients, display=False):
 
     # Load Running Information
     downsampled_running_trace = np.load(os.path.join(base_directory, "Movement_Controls", "Downsampled_Running_Trace.npy"))
-    running_coefficients = np.load(os.path.join(base_directory, "Movement_Controls", "Running_Regression_Coefficients", "All_Times_Running_Coefficient_Vector.npy"))
-    running_intercepts = np.load(os.path.join(base_directory, "Movement_Controls", "Running_Regression_Coefficients", "All_Times_Running_Intercept_Vector.npy"))
 
     running_coefficients = np.expand_dims(running_coefficients, axis=0)
 
@@ -105,7 +105,6 @@ def correct_running_activity_tensor(base_directory, onsets, trial_start, trial_s
 
         # Predict Activity
         predicited_activity = np.matmul(trial_running_trace, running_coefficients)
-        predicited_activity = np.add(predicited_activity, running_intercepts)
         print("Predicited Activity Shape", np.shape(predicited_activity))
 
         # Get Actual Activity
@@ -179,14 +178,19 @@ def create_activity_tensor_tables(base_directory, onsets_file_list, trial_start,
         os.mkdir(save_directory)
 
     if running_correction == True:
-        predicted_tensor, corrected_tensor = correct_running_activity_tensor(base_directory, onsets, trial_start, trial_stop, activity_tensor)
+
+        # Get Running Regression coefficients
+        coefficient_save_directory = os.path.join(save_directory, "Movement_Controls", "Running_Regression_Coefficients")
+        running_coefficients = get_running_regression_coefficients(base_directory, activity_tensor, onsets, trial_start, trial_stop, coefficient_save_directory, tensor_name)
+
+        predicted_tensor, corrected_tensor = correct_running_activity_tensor(base_directory, onsets, trial_start, trial_stop, activity_tensor, running_coefficients)
         np.save(os.path.join(save_directory, tensor_name + "_Activity_Tensor.npy"), activity_tensor)
         np.save(os.path.join(save_directory, tensor_name + "_Predicted_Tensor.npy"), predicted_tensor)
         np.save(os.path.join(save_directory, tensor_name + "_Corrected_Tensor.npy"), corrected_tensor)
     else:
         np.save(os.path.join(save_directory, tensor_name + "_Activity_Tensor.npy"), activity_tensor)
 
-
+"""
 
 
 
@@ -211,8 +215,7 @@ def get_region_activity(tensor, region_map, selected_regions):
 
 
 
-
-def create_activity_tensor(base_directory, onsets_file_list, trial_start, trial_stop, tensor_name, running_correction=False, spatial_smoothing=False, smoothing_sd=2):
+def create_activity_tensor(base_directory, onsets_file_list, trial_start, trial_stop, tensor_name, spatial_smoothing=False, smoothing_sd=2, save_tensor=True):
     print(base_directory)
 
 
@@ -223,9 +226,9 @@ def create_activity_tensor(base_directory, onsets_file_list, trial_start, trial_
 
     # Load Onsets
     onsets = []
+    print("Onsets file List", onsets_file_list)
     for onsets_file in onsets_file_list:
-        print(onsets_file_list)
-        print(onsets_file)
+        print("Onsets File", onsets_file)
         onsets_file_contents = np.load(os.path.join(base_directory, "Stimuli_Onsets", onsets_file))
         for onset in onsets_file_contents:
             onsets.append(onset)
@@ -238,19 +241,12 @@ def create_activity_tensor(base_directory, onsets_file_list, trial_start, trial_
     if spatial_smoothing == True:
         activity_tensor = spatially_smooth_activity_tensor(base_directory, activity_tensor, sigma=smoothing_sd)
 
-
     # Save Tensors
-    save_directory = os.path.join(base_directory, "Activity_Tensors")
-    if not os.path.exists(save_directory):
-        os.mkdir(save_directory)
+    if save_tensor == True:
+        save_directory = os.path.join(base_directory, "Activity_Tensors")
+        if not os.path.exists(save_directory):
+            os.mkdir(save_directory)
 
-    if running_correction == True:
-        predicted_tensor, corrected_tensor = correct_running_activity_tensor(base_directory, onsets, trial_start, trial_stop, activity_tensor)
-        np.save(os.path.join(save_directory, tensor_name + "_Activity_Tensor.npy"), activity_tensor)
-        np.save(os.path.join(save_directory, tensor_name + "_Predicted_Tensor.npy"), predicted_tensor)
-        np.save(os.path.join(save_directory, tensor_name + "_Corrected_Tensor.npy"), corrected_tensor)
-    else:
         np.save(os.path.join(save_directory, tensor_name + "_Activity_Tensor.npy"), activity_tensor)
 
-
-
+    return activity_tensor
