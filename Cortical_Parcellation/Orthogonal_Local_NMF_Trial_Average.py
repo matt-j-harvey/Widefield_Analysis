@@ -338,7 +338,7 @@ class tensor_decomposition_model(keras.Model):
             # Scale Losses
             total_loss = 0
             total_loss += 1 * reconstruction_error
-            total_loss += 1 * overlap_error
+            total_loss += 0.1 * overlap_error
             total_loss += 1 * sparsity_loss
             total_loss += 1000000 * locality_loss
 

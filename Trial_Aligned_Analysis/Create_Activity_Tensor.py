@@ -215,6 +215,31 @@ def get_region_activity(tensor, region_map, selected_regions):
 
 
 
+
+def create_allen_atlas_activity_tensor(base_directory, onsets_file_list, trial_start, trial_stop):
+    print(base_directory)
+
+    # Load Delta F Matrix
+    delta_f_matrix = np.load(os.path.join(base_directory, "Allen_Region_Delta_F.npy"))
+
+    # Load Onsets
+    onsets = []
+    print("Onsets file List", onsets_file_list)
+    for onsets_file in onsets_file_list:
+        print("Onsets File", onsets_file)
+        onsets_file_contents = np.load(os.path.join(base_directory, "Stimuli_Onsets", onsets_file))
+        for onset in onsets_file_contents:
+            onsets.append(onset)
+    print("Number_of_trails: ", len(onsets))
+
+    # Create Trial Tensor
+    activity_tensor = get_activity_tensor(delta_f_matrix, onsets, trial_start, trial_stop)
+
+
+    return activity_tensor
+
+
+
 def create_activity_tensor(base_directory, onsets_file_list, trial_start, trial_stop, tensor_name, spatial_smoothing=False, smoothing_sd=2, save_tensor=True):
     print(base_directory)
 

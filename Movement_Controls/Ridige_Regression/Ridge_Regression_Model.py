@@ -13,7 +13,10 @@ import joblib
 import sys
 
 sys.path.append("/home/matthew/Documents/Github_Code/Widefield_Analysis/Movement_Controls/Bodycam_Analysis")
+
 import Get_Bodycam_SVD_Tensor
+import Match_Mousecam_Frames_To_Widefield_Frames
+
 
 def factor_number(number_to_factor):
 
@@ -597,31 +600,36 @@ def create_design_matrix(activity_matrix, running_regressors, visual_stimuli_reg
     return activity_matrix, design_matrix
 
 
+
 def perform_ridge_regression(base_directory, onset_lists, start_window, stop_window, activity_tensor_list, stimuli_list, video_file):
 
-    # Load Onsets
-    condition_1_onsets = np.load(os.path.join(base_directory, "Stimuli_Onsets", onset_lists[0] + "_onsets.npy"))
-    condition_2_onsets = np.load(os.path.join(base_directory, "Stimuli_Onsets", onset_lists[1] + "_onsets.npy"))
-    print("Condition 1 trials", len(condition_1_onsets))
-    print("COndition 2 trials", len(condition_2_onsets))
-
-    # Load Delta F Matrix
-    delta_f_matrix_filepath = os.path.join(base_directory, "Delta_F.h5")
-    delta_f_matrix_container = tables.open_file(delta_f_matrix_filepath, mode='r')
-    delta_f_matrix = delta_f_matrix_container.root['Data']
-
     # Get Activity Tensors
-    condition_1_activity_tensor = get_activity_tensor(delta_f_matrix, condition_1_onsets, start_window, stop_window)
-    condition_2_activity_tensor = get_activity_tensor(delta_f_matrix, condition_2_onsets, start_window, stop_window)
+    condition_1_activity_tensor = activity_tensor_list[0]
+    condition_2_activity_tensor = activity_tensor_list[1]
+
+    print("Condition 1 activity tensor", np.shape(condition_1_activity_tensor))
+    print("Condition 2 activity tensor", np.shape(condition_2_activity_tensor))
+
+    # Check We Have A Widefield To Mousecam Frame Dict
+    if not os.path.exists(os.path.join(base_directory, "Stimuli_Onsets", "widfield_to_mousecam_frame_dict.npy")):
+        Match_Mousecam_Frames_To_Widefield_Frames.match_mousecam_to_widefield_frames(base_directory)
 
     # Get Mousecam Tensors
-    condition_1_bodycam_tensor, condition_2_bodycam_tensor, bodycam_components = Get_Bodycam_SVD_Tensor.get_bodycam_tensor_multiple_conditions(base_directory, video_file, [onset_lists[0]], [onset_lists[1]], start_window, stop_window)
+    condition_1_bodycam_tensor, condition_2_bodycam_tensor, bodycam_components = Get_Bodycam_SVD_Tensor.get_bodycam_tensor_multiple_conditions(base_directory, video_file, onset_lists, start_window, stop_window)
+
+    print("Condition 1 bodycam tensor", np.shape(condition_1_bodycam_tensor))
+    print("Condition 2 bodycam tensor", np.shape(condition_2_bodycam_tensor))
+
 
     # Get Running Tensors
     downsampled_running_trace = np.load(os.path.join(base_directory, "Movement_Controls", "Downsampled_Running_Trace.npy"))
     condition_1_running_tensor = create_running_tensor(condition_1_onsets, start_window, stop_window, downsampled_running_trace)
     condition_2_running_tensor = create_running_tensor(condition_2_onsets, start_window, stop_window, downsampled_running_trace)
 
+    print("Condition 1 running tensor shape", np.shape(condition_1_running_tensor))
+    print("Condition 2 running tensor shapee", np.shape(condition_2_running_tensor))
+
+    """
     # Create Visual Stimuli Regressors
     condition_1_stimuli_regressors = create_visual_stimuli_regressors(condition_1_onsets, start_window, stop_window, base_directory, stimuli_list[0], 1)
     condition_2_stimuli_regressors = create_visual_stimuli_regressors(condition_2_onsets, start_window, stop_window, base_directory, stimuli_list[1], 2)
@@ -658,29 +666,6 @@ def perform_ridge_regression(base_directory, onset_lists, start_window, stop_win
     np.save(os.path.join(save_directory, "Coefficients.npy"), coefficients)
     np.save(os.path.join(save_directory, "Intercepts.npy"), intercepts)
     np.save(os.path.join(save_directory, "Ridge_Regression_Bodycam_Components.npy"), bodycam_components)
+    """
 
 
-
-
-controls = ["/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK14.1A/2021_06_17_Transition_Imaging",
-            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK7.1B/2021_04_02_Transition_Imaging",
-            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK4.1B/2021_04_10_Transition_Imaging",
-            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NRXN78.1A/2020_12_09_Switching_Imaging",
-            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NRXN78.1D/2020_11_29_Switching_Imaging"]
-
-mutants =  ["/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK4.1A/2021_04_12_Transition_Imaging",
-            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK16.1B/2021_07_08_Transition_Imaging",
-            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK10.1A/2021_06_18_Transition_Imaging",
-            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK12.1F/2021_09_22_Transition_Imaging",
-            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NRXN71.2A/2020_12_17_Switching_Imaging"]
-
-all_mice = controls + mutants
-onsets_list = ["visual_context_stable_vis_2", "odour_context_stable_vis_2"]
-activity_tensor_list = ["Vis_2_Stable_Visual",  "Vis_2_Stable_Odour"]
-start_window = -10
-stop_window = 40
-stimuli_list = ["Visual 2", "Visual 2"]
-video_file = "NXAK14.1A_2021-06-17-14-30-28_cam_1.mp4"
-for base_directory in all_mice:
-    perform_ridge_regression(base_directory, onsets_list, start_window, stop_window, activity_tensor_list, stimuli_list, video_file)
-    print("Ridge Regression Complete")

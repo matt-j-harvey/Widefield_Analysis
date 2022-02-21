@@ -61,6 +61,8 @@ def create_mousecam_tensor(base_directory, video_file, onsets, start_window, sto
 
 def perform_svd_on_video(video_array, number_of_components=100):
 
+    print("Performing SVD")
+
     # Assumes Video Data is a 3D array with the structure: Trials, Timepoints, height, width
     number_of_trials = np.shape(video_array)[0]
     trial_length     = np.shape(video_array)[1]
@@ -69,7 +71,8 @@ def perform_svd_on_video(video_array, number_of_components=100):
     number_of_frames = number_of_trials * trial_length
 
     # Flatten Video
-    video = np.reshape(video_array, (number_of_frames, video_height * video_width))
+    video_array = np.reshape(video_array, (number_of_frames, video_height * video_width))
+    print("Flat Video Array Shaoe", np.shape(video_array))
 
     # Perform PCA
     pca_model = TruncatedSVD(n_components=number_of_components)
@@ -115,15 +118,19 @@ def load_video_as_numpy_array(video_file, selected_mousecam_frames):
     return extracted_frames
 
 
-def get_motion_energy(mousecam_tensor, visualise=True):
+def get_motion_energy(mousecam_tensor, visualise=False):
 
     # Get Difference Along Time Axis
-    difference_tensor = np.diff(mousecam_tensor, axis=1)
-    print("Difference Tensor Shape", np.shape(difference_tensor))
+    mousecam_tensor = np.diff(mousecam_tensor, axis=1)
+    mousecam_tensor = np.nan_to_num(mousecam_tensor)
+    print("Difference Tensor Shape", np.shape(mousecam_tensor))
+    print("Difference Tensor Sizee", mousecam_tensor.nbytes)
 
     # Get Absolute Value of Difference Tensor
-    difference_tensor = np.abs(difference_tensor)
+    np.abs(mousecam_tensor, out=mousecam_tensor)
+    print("Difference Tensor Sizee", mousecam_tensor.nbytes)
 
+    """
     # Sanity Check
     if visualise == True:
         plt.ion()
@@ -158,8 +165,8 @@ def get_motion_energy(mousecam_tensor, visualise=True):
                 plt.clf()
 
         plt.ioff()
-
-    return difference_tensor
+    """
+    return mousecam_tensor
 
 
 def load_video_as_numpy_array(video_file, selected_mousecam_frames):
@@ -272,7 +279,7 @@ def get_bodycam_tensor(base_directory, video_file, onsets_file_list, start_windo
     mousecam_tensor = create_mousecam_tensor(base_directory, video_file, onsets, start_window, stop_window)
 
     #Get "Motion Energy" - (Absolute Value Of THe Difference Between Subsequent Frames)
-    mousecam_tensor = get_motion_energy(mousecam_tensor, visualise=False)
+    mousecam_tensor = get_motion_energy(mousecam_tensor, visualise=True)
 
     # Perform SVD on Video To Decompose It Into A number of components and loadings of these components over time
     transformed_data, components = perform_svd_on_video(mousecam_tensor, number_of_components=number_of_components)
@@ -284,7 +291,7 @@ def get_bodycam_tensor(base_directory, video_file, onsets_file_list, start_windo
 
 
 
-def get_bodycam_tensor_multiple_conditions(base_directory, video_file, condition_1_onsets_file_list, condition_2_onsets_file_list, start_window, stop_window, number_of_components=20):
+def get_bodycam_tensor_multiple_conditions(base_directory, video_file, onsets_group_list, start_window, stop_window, number_of_components=20):
 
     # This code will extract the bodycam video around a number of trials and perform SVD on this data
     # Onsets File - should be a numpy array which contains the bodycam frame index at the start of each trial
@@ -293,12 +300,13 @@ def get_bodycam_tensor_multiple_conditions(base_directory, video_file, condition
     # Video File - full file path to video file
 
     # Load Widefield Frame Indexes of Trial Starts
-    condition_1_onsets = load_onsets(base_directory, condition_1_onsets_file_list)
-    condition_2_onsets = load_onsets(base_directory, condition_2_onsets_file_list)
-    onsets = condition_1_onsets + condition_2_onsets
+    onsets_list = []
+    for onset_group in onsets_group_list:
+        for onset in onset_group:
+            onsets_list.append(onset)
 
     # Convert Widefield Frames Into Mousecam Frames
-    onsets = convert_widefield_onsets_into_mousecam_onsets(base_directory, onsets)
+    onsets = convert_widefield_onsets_into_mousecam_onsets(base_directory, onsets_list)
 
     # Load Video Data Into A Tensor Of Shape (N_trials , Trial Length, Image Height, Image Width)
     mousecam_tensor = create_mousecam_tensor(base_directory, video_file, onsets, start_window-1, stop_window)
