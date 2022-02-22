@@ -181,6 +181,23 @@ def compare_noise_correlations(session_list):
 
 
 
+def concatenate_and_subtract_mean_region(tensor):
+
+    # Get Structure
+    number_of_trials = np.shape(tensor)[0]
+    number_of_timepoints = np.shape(tensor)[1]
+
+    # Get Mean Trace
+    mean_trace = np.mean(tensor, axis=0)
+
+    # Subtract Mean Trace
+    subtracted_tensor = np.subtract(tensor, mean_trace)
+
+    # Concatenate Trials
+    concatenated_subtracted_tensor = np.reshape(subtracted_tensor, (number_of_trials * number_of_timepoints))
+
+    return concatenated_subtracted_tensor
+
 
 
 def concatenate_and_subtract_mean(tensor):
@@ -206,19 +223,106 @@ def concatenate_and_subtract_mean(tensor):
 
 
 def correlate_one_with_many(one, many):
+
     c = 1 - cdist(one, many, metric='correlation')[0]
+    print(c)
+    plt.plot(one)
+    plt.plot(many)
+    plt.show()
+
+
     return c
 
 
 
+def get_correlation_matrix(region_trace, activity_trace):
 
-def analyse_noise_correlations(activity_tensor, region_tensor):
+    print("Correlating")
+    number_of_regions = np.shape(activity_trace)[0]
+    print("Number Of Regions")
 
-    # Concatenate and Subtract MeanFor Each Tensor
-    activity_tensor = concatenate_and_subtract_mean(activity_tensor)
-    region_tensor = concatenate_and_subtract_mean(region_tensor)
+    """
+    print(region_trace)
+    plt.plot(region_trace)
+    plt.show()
+    """
+
+    correlation_vector = []
+    for region_index in range(number_of_regions):
+        seed_region_trace = activity_trace[region_index]
+
+        print("seed region trae", np.shape(seed_region_trace))
+
+        correlation_coefficient = np.corrcoef(region_trace, seed_region_trace)
+        print("Correlation Coefficient", correlation_coefficient)
+
+        """
+        plt.plot(region_trace)
+        plt.plot(seed_region_trace, c='r')
+        plt.show()
+        """
+        correlation_vector.append(correlation_coefficient[0, 1])
+
+    return correlation_vector
+
+
+
+
+
+def analyse_noise_correlations(context_1_activity_tensor_list, context_2_activity_tensor_list, context_1_region_tensor_list, context_2_region_tensor_list):
+
+    # Concatenate And Subtract Mean For Each Tensor
+    context_1_noise_activity_tensor_list = []
+    for tensor in context_1_activity_tensor_list:
+        tensor = concatenate_and_subtract_mean(tensor)
+        context_1_noise_activity_tensor_list.append(tensor)
+
+    context_1_noise_region_tensor_list = []
+    for tensor in context_1_region_tensor_list:
+        tensor = concatenate_and_subtract_mean_region(tensor)
+        context_1_noise_region_tensor_list.append(tensor)
+
+    context_2_noise_activity_tensor_list = []
+    for tensor in context_2_activity_tensor_list:
+        tensor = concatenate_and_subtract_mean(tensor)
+        context_2_noise_activity_tensor_list.append(tensor)
+
+    context_2_noise_region_tensor_list = []
+    for tensor in context_2_region_tensor_list:
+        tensor = concatenate_and_subtract_mean_region(tensor)
+        context_2_noise_region_tensor_list.append(tensor)
+
+
+    """
+    print("COmapring Region Tensors")
+    for tensor in context_1_noise_region_tensor_list:
+        plt.plot(tensor)
+        plt.show()
+    """
+
+
+
+
+
+    context_1_concatenated_activity_tensor  = np.hstack(context_1_noise_activity_tensor_list)
+    context_1_concatenated_region_tensor    = np.hstack(context_1_noise_region_tensor_list)
+    context_2_concatenated_activity_tensor  = np.hstack(context_2_noise_activity_tensor_list)
+    context_2_concatenated_region_tensor    = np.hstack(context_2_noise_region_tensor_list)
+
+    print("Context 1 Concat Activity Tensor", np.shape(context_1_concatenated_activity_tensor))
+    print("Context 1 Concat Region Tensor", np.shape(context_1_concatenated_region_tensor))
+    print("Context 2 Concat Activity Tensor", np.shape(context_2_concatenated_activity_tensor))
+    print("Context 2 Concat Region Tensor", np.shape(context_2_concatenated_region_tensor))
+
+    """
+    print("Plotting Region Tensors")
+    plt.plot(context_1_concatenated_region_tensor)
+    plt.plot(context_2_concatenated_region_tensor)
+    plt.show()
+    """
 
     # Get Correlation Map
-    correlation_map = correlate_one_with_many(region_tensor, activity_tensor)
+    context_1_correlation_map = get_correlation_matrix(context_1_concatenated_region_tensor, context_1_concatenated_activity_tensor)
+    context_2_correlation_map = get_correlation_matrix(context_2_concatenated_region_tensor, context_2_concatenated_activity_tensor)
 
-    return correlation_map
+    return context_1_correlation_map, context_2_correlation_map
