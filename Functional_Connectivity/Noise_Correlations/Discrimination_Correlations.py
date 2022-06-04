@@ -42,8 +42,10 @@ def get_activity_tensor(activity_matrix, onset_list, start_window, stop_window):
     for onset in onset_list:
         trial_start = onset + start_window
         trial_stop = onset + stop_window
-        trial_activity = activity_matrix[trial_start:trial_stop]
-        activity_tensor.append(trial_activity)
+
+        if trial_stop < np.shape(activity_matrix)[0]:
+            trial_activity = activity_matrix[trial_start:trial_stop]
+            activity_tensor.append(trial_activity)
 
     activity_tensor = np.array(activity_tensor)
     return activity_tensor
@@ -55,6 +57,8 @@ def get_noise_correlations(activity_matrix, condition_1_onsets, condition_2_onse
 
     condition_1_tensor = get_activity_tensor(activity_matrix, condition_1_onsets, start_window, stop_window)
     condition_2_tensor = get_activity_tensor(activity_matrix, condition_2_onsets, start_window, stop_window)
+    print("Condition 1 tensor", np.shape(condition_1_tensor))
+    print("Condition 2 tensor", np.shape(condition_2_tensor))
 
     condition_1_mean = np.mean(condition_1_tensor, axis=0)
     condition_2_mean = np.mean(condition_2_tensor, axis=0)
@@ -88,40 +92,99 @@ def get_signal_correlations(activity_matrix, condition_1_onsets, condition_2_ons
     return comined_correlation_matrix
 
 
-# Settings
-condition_1 = "visual_1_all_onsets.npy"
-condition_2 = "visual_2_all_onsets.npy"
-start_window = -14
-stop_window = 40
-trial_length = stop_window - start_window
+def analyse_noise_correlations(base_directory, visualise=False):
 
-# Load Neural Data
-base_directory = r"C:\Users\matth\Documents\Functional-Connectivity_V2\Parcellated_Delta_F\NXAK7.1B\2021_02_22_Discrimination_Imaging"
-activity_matrix = np.load(os.path.join(base_directory, "Cluster_Activity_Matrix.npy"))
-print("Delta F Matrix Shape", np.shape(activity_matrix))
+    # Settings
+    condition_1 = "visual_1_all_onsets.npy"
+    condition_2 = "visual_2_all_onsets.npy"
+    start_window = -14
+    stop_window = 40
+    trial_length = stop_window - start_window
 
-# Normalise Activity Matrix
-activity_matrix = normalise_activity_matrix(activity_matrix)
+    # Load Neural Data
+    activity_matrix = np.load(os.path.join(base_directory, "Movement_Correction", "Motion_Corrected_Residuals.npy"))
+    print("Delta F Matrix Shape", np.shape(activity_matrix))
 
-# Remove Background Activity
-activity_matrix = activity_matrix[:, 1:]
+    # Normalise Activity Matrix
+    activity_matrix = normalise_activity_matrix(activity_matrix)
 
-# Load Onsets
-vis_1_onsets = np.load(os.path.join(base_directory, "Stimuli_Onsets", condition_1))
-vis_2_onsets = np.load(os.path.join(base_directory, "Stimuli_Onsets", condition_2))
+    # Remove Background Activity
+    activity_matrix = activity_matrix[:, 1:]
 
-# Get Noise Correlations
-noise_correlation_matrix = get_noise_correlations(activity_matrix, vis_1_onsets, vis_2_onsets, start_window, stop_window)
-signal_correlation_matrix = get_signal_correlations(activity_matrix, vis_1_onsets, vis_2_onsets, start_window, stop_window)
+    # Load Onsets
+    vis_1_onsets = np.load(os.path.join(base_directory, "Stimuli_Onsets", condition_1))
+    vis_2_onsets = np.load(os.path.join(base_directory, "Stimuli_Onsets", condition_2))
+
+    # Get Noise Correlations
+    noise_correlation_matrix = get_noise_correlations(activity_matrix, vis_1_onsets, vis_2_onsets, start_window, stop_window)
+    signal_correlation_matrix = get_signal_correlations(activity_matrix, vis_1_onsets, vis_2_onsets, start_window, stop_window)
+
+    if visualise == True:
+        figure_1 = plt.figure()
+        signal_axis = figure_1.add_subplot(1,2,1)
+        noise_axis = figure_1.add_subplot(1,2,2)
+
+        signal_axis.imshow(signal_correlation_matrix, cmap='bwr', vmin=-1, vmax=1)
+        noise_axis.imshow(noise_correlation_matrix, cmap='bwr', vmin=-1, vmax=1)
+
+        signal_axis.set_title("Signal Correlation")
+        noise_axis.set_title("Noise Correlation")
+
+        plt.show()
+    return noise_correlation_matrix
+
+
+session_list = [
+
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_01_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_03_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_05_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_07_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_09_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_11_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_13_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_15_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_17_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_19_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_22_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_24_Discrimination_Imaging",
+
+    ]
+
+
+session_list = [
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_04_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_06_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_08_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_10_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_12_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_14_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_22_Discrimination_Imaging"
+]
+
+session_list = [
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK14.1A/2021_04_29_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK14.1A/2021_05_01_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK14.1A/2021_05_03_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK14.1A/2021_05_05_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK14.1A/2021_05_07_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK14.1A/2021_05_09_Discrimination_Imaging",
+]
+
+noise_correlation_matrix_list = []
+for session in session_list:
+    noise_correlations = analyse_noise_correlations(session)
+    noise_correlation_matrix_list.append(noise_correlations)
+
 
 figure_1 = plt.figure()
-signal_axis = figure_1.add_subplot(1,2,1)
-noise_axis = figure_1.add_subplot(1,2,2)
+rows = 1
+columns = len(noise_correlation_matrix_list)
 
-signal_axis.imshow(signal_correlation_matrix, cmap='bwr', vmin=-1, vmax=1)
-noise_axis.imshow(noise_correlation_matrix, cmap='bwr', vmin=-1, vmax=1)
+for session_index in range(len(noise_correlation_matrix_list)):
+    axis = figure_1.add_subplot(rows, columns, session_index + 1)
+    axis.imshow(noise_correlation_matrix_list[session_index], cmap='bwr', vmin=-1, vmax=1)
 
-signal_axis.set_title("Signal Correlation")
-noise_axis.set_title("Noise Correlation")
-
+final_difference = np.subtract(noise_correlation_matrix_list[0], noise_correlation_matrix_list[-1])
+plt.imshow(final_difference, cmap='bwr', vmin=-1, vmax=1)
 plt.show()

@@ -544,14 +544,16 @@ while converged == False:
         # Check If Converged
         if len(all_validation_losses) > previous_loss_window_size:
             previous_n_losses = all_validation_losses[-previous_loss_window_size:]
-            print("PRevious losses", previous_n_losses)
+
             if validation_loss > np.max(previous_n_losses):
                 converged = True
                 print("Model Converged :)")
 
-            torch.save(rnn, os.path.join(output_directory, "RNN_Iteration_" + str(i).zfill(6) + ".pt"))
+        torch.save(rnn, os.path.join(output_directory, "RNN_Iteration_" + str(i).zfill(6) + ".pt"))
 
-    i+=1
+    i += 1
+
+
     """ 
 
 
