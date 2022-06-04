@@ -166,7 +166,7 @@ def create_boxcar_funcctions(number_of_conditions, trial_length, number_of_trial
 
 
 
-def create_ppi_model(context_1_activity_tensor_list, context_2_activity_tensor_list, context_1_region_tensor_list, context_2_region_tensor_list):
+def create_ppi_model(context_1_activity_tensor_list, context_2_activity_tensor_list, context_1_region_tensor_list, context_2_region_tensor_list, context_1_bodycam_tensor, context_2_bodycam_tensor):
 
 
     # Get Data Structure
@@ -215,12 +215,26 @@ def create_ppi_model(context_1_activity_tensor_list, context_2_activity_tensor_l
     # Create Stimuli Regressors
     stimuli_regressors = create_stimuli_regressors(context_1_activity_tensor_list, context_2_activity_tensor_list, number_of_conditions, number_of_trials_list, trial_length)
 
+    print("Stimullli Regressors Shaoe", np.shape(stimuli_regressors))
+    #print("Condition 1 bodycam Regressors", np.shape(context_1_bodycam_tensor))
+    #print("Condition 2 bodycam Regressors", np.shape(context_2_bodycam_tensor))
+
     # Create Boxcar Functions
     context_1_boxcar, context_2_boxcar = create_boxcar_funcctions(number_of_conditions, trial_length, number_of_trials_list)
 
     # Create Model
     model = Ridge()
     #model = LinearRegression()
+
+
+    # Rehsape Bodycam Tensors
+    combined_bodycam_tensor = np.vstack([context_1_bodycam_tensor, context_2_bodycam_tensor])
+    number_of_trials = np.shape(combined_bodycam_tensor)[0]
+    trial_length = np.shape(combined_bodycam_tensor)[1]
+    bodycam_components = np.shape(combined_bodycam_tensor)[2]
+    combined_bodycam_tensor = np.reshape(combined_bodycam_tensor, (number_of_trials * trial_length, bodycam_components))
+    print("Combined BOdycam Tensor", np.shape(combined_bodycam_tensor))
+
 
     # Create Variable Placeholders
     number_of_samples = total_number_of_trials * trial_length
@@ -234,12 +248,17 @@ def create_ppi_model(context_1_activity_tensor_list, context_2_activity_tensor_l
         placeholder_trace,
 
         stimuli_regressors,
-        baseline_regressor
+        baseline_regressor,
+        combined_bodycam_tensor
 
     ])
 
 
     coefficient_tensor = []
+
+
+
+
 
     flat_activity_tensor = np.transpose(flat_activity_tensor)
     for pixel_index in range(number_of_pixels):
@@ -275,6 +294,8 @@ def create_ppi_model(context_1_activity_tensor_list, context_2_activity_tensor_l
         plt.imshow(design_matrix)
         plt.show()
         """
+
+        # Centre Traces
         model.fit(X=design_matrix, y=flat_region_trace)
 
         coefficient_tensor.append(model.coef_)

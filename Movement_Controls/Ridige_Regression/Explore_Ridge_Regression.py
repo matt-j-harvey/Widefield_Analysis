@@ -45,11 +45,13 @@ def create_cortical_image_from_vector(indicies, image_height, image_width, vecto
     return cortical_image
 
 
-def view_regresssion_coefficients(base_directory):
+def view_regresssion_coefficients(base_directory, trial_start, trial_stop):
 
     # Visual Stimuli = 0 - 100
     # running = 100
     # bodycam = 100 - 120
+
+    trial_length = trial_stop - trial_start
 
     # Load Mask Details
     indicies, image_height, image_width = Widefield_General_Functions.load_mask(base_directory)
@@ -60,10 +62,10 @@ def view_regresssion_coefficients(base_directory):
     intercepts = np.load(os.path.join(regression_directory, "Intercepts.npy"))
 
     print("Coefficients Shape", np.shape(coefficients))
-    condition_1_coefs = coefficients[:, 0:50]
-    condition_2_coefs = coefficients[:,50:100]
-    running_coefs = coefficients[: 100]
-    bodycam_coefs = coefficients[:, 101:]
+    condition_1_coefs = coefficients[:, 0:trial_length]
+    condition_2_coefs = coefficients[:, trial_length:2*trial_length]
+    running_coefs = coefficients[: 2*trial_length]
+    bodycam_coefs = coefficients[:, 2*trial_length + 1:]
 
 
     figure_1 = plt.figure()
@@ -73,7 +75,7 @@ def view_regresssion_coefficients(base_directory):
     vmax = coefficient_range
 
     plt.ion()
-    for x in range(50):
+    for x in range(trial_length):
 
         condition_1_axis = figure_1.add_subplot(1,3,1)
         condition_2_axis = figure_1.add_subplot(1,3,2)
@@ -87,8 +89,8 @@ def view_regresssion_coefficients(base_directory):
         condition_2_image = create_cortical_image_from_vector(indicies, image_height, image_width, condition_2_vector)
         difference_image = create_cortical_image_from_vector(indicies, image_height, image_width, difference_vector)
 
-        condition_1_axis.imshow(condition_1_image, cmap='bwr', vmin=vmin, vmax=vmax)
-        condition_2_axis.imshow(condition_2_image, cmap='bwr', vmin=vmin, vmax=vmax)
+        condition_1_axis.imshow(condition_1_image, cmap='jet', vmin=0, vmax=0.2)
+        condition_2_axis.imshow(condition_2_image, cmap='jet', vmin=0, vmax=0.2)
         difference_axis.imshow(difference_image, cmap='bwr', vmin=vmin, vmax=vmax)
 
         condition_1_axis.axis('off')
@@ -101,10 +103,12 @@ def view_regresssion_coefficients(base_directory):
         plt.pause(0.1)
         plt.clf()
 
+
+
     # View Other Regressors
     bodycam_components = np.load(os.path.join(regression_directory, "Ridge_Regression_Bodycam_Components.npy"))
 
-
+    """
     print("Bodycam Coeffs", np.shape(bodycam_coefs))
     number_of_bodycam_coefficients = np.shape(bodycam_coefs)[1]
     plt.ioff()
@@ -123,21 +127,23 @@ def view_regresssion_coefficients(base_directory):
         coefficient_axis.imshow(coefficient_image, cmap='jet', vmin=0)
         component_axis.imshow(component_image, cmap='jet', vmin=0)
         plt.show()
+    """
 
 
 
 
+controls = ["/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NXAK14.1A/2021_06_17_Transition_Imaging",
+            "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NXAK7.1B/2021_04_02_Transition_Imaging",
+            "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NXAK4.1B/2021_04_10_Transition_Imaging",
+            "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NRXN78.1A/2020_12_09_Switching_Imaging",
+            "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NRXN78.1D/2020_11_29_Switching_Imaging"]
 
-controls = ["/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK14.1A/2021_06_17_Transition_Imaging",
-            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK7.1B/2021_04_02_Transition_Imaging",
-            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK4.1B/2021_04_10_Transition_Imaging",
-            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NRXN78.1A/2020_12_09_Switching_Imaging",
-            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NRXN78.1D/2020_11_29_Switching_Imaging"]
+mutants =  ["/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NXAK4.1A/2021_04_12_Transition_Imaging",
+            "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NXAK16.1B/2021_07_08_Transition_Imaging",
+            "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NXAK10.1A/2021_06_18_Transition_Imaging",
+            "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NXAK12.1F/2021_09_22_Transition_Imaging",
+            "/media/matthew/Seagate Expansion Drive2/Widefield_Imaging/Transition_Analysis/NRXN71.2A/2020_12_17_Switching_Imaging"]
 
-mutants =  ["/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK4.1A/2021_04_12_Transition_Imaging",
-            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK16.1B/2021_07_08_Transition_Imaging",
-            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK10.1A/2021_06_18_Transition_Imaging",
-            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NXAK12.1F/2021_09_22_Transition_Imaging",
-            "/media/matthew/Seagate Expansion Drive/Widefield_Imaging/Transition_Analysis/NRXN71.2A/2020_12_17_Switching_Imaging"]
-
-view_regresssion_coefficients(controls[0])
+start_window = -10
+stop_window = 20
+view_regresssion_coefficients(controls[0], start_window ,stop_window)

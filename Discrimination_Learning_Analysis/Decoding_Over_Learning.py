@@ -1,12 +1,13 @@
 import numpy as np
 import sklearn.svm
 from sklearn.decomposition import NMF
-from sklearn.model_selection import cross_val_score, KFold
+from sklearn.model_selection import cross_val_score, KFold, StratifiedKFold
 from sklearn.linear_model import LogisticRegression
 import os
 import matplotlib.pyplot as plt
 import sys
 from matplotlib import cm
+import h5py
 
 sys.path.append("/home/matthew/Documents/Github_Code/Widefield_Preprocessing")
 import Widefield_General_Functions
@@ -36,50 +37,61 @@ def perform_dimensionality_reduction(trial_tensor, n_components=3):
 
 
 
-def load_data(output_directory, session_index, remake=False):
+def get_trial_tensor(delta_f_matrix, onset_list, start_window, stop_window):
 
-    if os.path.exists(output_directory + "/Transformed_Data.npy") and not remake:
-        transformed_data = np.load(output_directory + "/Transformed_Data.npy")
-        components = np.load(output_directory + "/Components.npy")
-        data_labels = np.load(output_directory + "/Labels.npy")
+    trial_tensor = []
+    for onset in onset_list:
+        trial_start = onset + start_window
+        trial_stop = onset + stop_window
+        trial_data = delta_f_matrix[trial_start:trial_stop]
+        trial_tensor.append(trial_data)
 
-    else:
-        condition_1_data = np.load(base_directory + session_list[session_index] + "/Stimuli_Evoked_Responses/All Vis 1/All Vis 1_Activity_Matrix_All_Trials.npy")
-        condition_2_data = np.load(base_directory + session_list[session_index] + "/Stimuli_Evoked_Responses/All Vis 2/All Vis 2_Activity_Matrix_All_Trials.npy")
-        combined_data = np.concatenate([condition_1_data, condition_2_data], axis=0)
-
-        components, transformed_data = perform_dimensionality_reduction(combined_data, n_components=30)
-        condition_1_labels = np.zeros(np.shape(condition_1_data)[0])
-        condition_2_labels = np.ones(np.shape(condition_2_data)[0])
-        data_labels = np.concatenate([condition_1_labels, condition_2_labels], axis=0)
-
-
-        # Save Transformed Data
-        np.save(output_directory + "/Transformed_Data.npy", transformed_data)
-        np.save(output_directory + "/Components.npy", components)
-        np.save(output_directory + "/Labels.npy", data_labels)
+    trial_tensor = np.array(trial_tensor)
+    return trial_tensor
 
 
 
-    return transformed_data, components, data_labels
+
+def load_data(base_directory, start_window=-10, stop_window=50):
+
+    # Load Delta F Matrix
+    delta_f_matrix_filepath = os.path.join(base_directory, "Delta_F.hdf5")
+    delta_f_matrix_container = h5py.File(delta_f_matrix_filepath, 'r')
+    delta_f_matrix = delta_f_matrix_container['Data']
+
+    # Load Onsets
+    vis_1_onsets = np.load(os.path.join(base_directory, "Stimuli_Onsets", "visual_1_all_onsets.npy"))
+    vis_2_onsets = np.load(os.path.join(base_directory, "Stimuli_Onsets", "visual_2_all_onsets.npy"))
+
+    condition_1_data = get_trial_tensor(delta_f_matrix, vis_1_onsets, start_window, stop_window)
+    condition_2_data = get_trial_tensor(delta_f_matrix, vis_2_onsets, start_window, stop_window)
+    combined_data = np.concatenate([condition_1_data, condition_2_data], axis=0)
+
+    condition_1_labels = np.zeros(np.shape(condition_1_data)[0])
+    condition_2_labels = np.ones(np.shape(condition_2_data)[0])
+    data_labels = np.concatenate([condition_1_labels, condition_2_labels], axis=0)
+
+    return combined_data, data_labels
 
 
-def perform_k_fold_cross_validation(data, labels, model, number_of_folds=5):
+def perform_k_fold_cross_validation(data, labels, number_of_folds=5):
 
     score_list = []
     weight_list = []
 
     # Get Indicies To Split Data Into N Train Test Splits
-    k_fold_object = KFold(n_splits=number_of_folds, random_state=None, shuffle=True)
+    #k_fold_object = KFold(n_splits=number_of_folds, random_state=None, shuffle=True)
+    k_fold_object = StratifiedKFold(n_splits=number_of_folds, random_state=42, shuffle=True)
 
     # Iterate Through Each Split
-    for train_index, test_index in k_fold_object.split(data):
+    for train_index, test_index in k_fold_object.split(data, y=labels):
 
         # Split Data Into Train and Test Sets
         data_train, data_test = data[train_index], data[test_index]
         labels_train, labels_test = labels[train_index], labels[test_index]
 
         # Train Model
+        model = LogisticRegression(penalty='l2')
         model.fit(data_train, labels_train)
 
         # Test Model
@@ -109,9 +121,9 @@ def perform_decoding(transformed_data, labels):
     for timepoint in range(trial_length):
         timepoint_data = transformed_data[:, timepoint]
 
-        model = LogisticRegression()
-        mean_score, mean_weights = perform_k_fold_cross_validation(timepoint_data, labels, model)
 
+        mean_score, mean_weights = perform_k_fold_cross_validation(timepoint_data, labels)
+        print("TImepoint: ", timepoint, "Mean Score: ", mean_score)
         score_list.append(mean_score)
         weight_matrix.append(mean_weights)
 
@@ -182,8 +194,6 @@ def visualise_decoding_over_learning(base_directory, session_list):
         weight_matrix_list.append(weight_matrix)
 
 
-
-
     # Plot Decoding For Each Timestep Across Learning
     number_of_timepoints = np.shape(decoding_scores_list[0])[0]
     rows = 1
@@ -209,35 +219,37 @@ def visualise_decoding_over_learning(base_directory, session_list):
 
 
 
-#base_directory = "/media/matthew/Seagate Expansion Drive2/Longitudinal_Analysis/NXAK14.1A/"
-base_directory = "/media/matthew/Seagate Expansion Drive2/Longitudinal_Analysis/NXAK4.1B/"
-session_list = ["2021_02_04_Discrimination_Imaging",
-                "2021_02_06_Discrimination_Imaging",
-                "2021_02_08_Discrimination_Imaging",
-                "2021_02_10_Discrimination_Imaging",
-                "2021_02_12_Discrimination_Imaging",
-                "2021_02_14_Discrimination_Imaging",
-                "2021_02_22_Discrimination_Imaging"]
+session_list = [
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_04_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_06_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_08_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_10_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_12_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_14_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_22_Discrimination_Imaging"
+]
 
-"""
+
 for session_index in range(len(session_list)):
     print("Session: ", session_index, " of ", len(session_list))
 
+    base_directory = session_list[session_index]
+
     # Create Output Directory
-    output_directory = base_directory + session_list[session_index] + "/Decoding_Analysis"
+    output_directory = os.path.join(base_directory, "Decoding_Analysis")
     if not os.path.exists(output_directory):
         os.mkdir(output_directory)
 
     # Load Data
-    transformed_data, components, data_labels = load_data(output_directory, session_index, remake=False)
+    combined_data, data_labels = load_data(base_directory)
+    print("Loaded Data", np.shape(combined_data))
 
     # Perform Decoding
-    score_list, weight_matrix = perform_decoding(transformed_data, data_labels)
+    score_list, weight_matrix = perform_decoding(combined_data, data_labels)
 
     # Save Score List and Weight Matrix
     np.save(output_directory + "/score_list.npy", score_list)
     np.save(output_directory + "/weight_matrix.npy", weight_matrix)
-"""
 
 # Visualise Decoding Over Learning:
 visualise_decoding_over_learning(base_directory, session_list)

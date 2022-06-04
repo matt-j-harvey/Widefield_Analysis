@@ -591,35 +591,31 @@ def create_design_matrix(activity_matrix, running_regressors, visual_stimuli_reg
     print("Reshaped Activity Matrix Shape", np.shape(activity_matrix))
     print("Reshaped Running Regressors", np.shape(running_regressors))
     print("Visual Simuli Regressors", np.shape(visual_stimuli_regressors))
-    print("Bodycam Regressors", np.shape(bodycam_regressors))
+    #print("Bodycam Regressors", np.shape(bodycam_regressors))
 
     #Combine These Into A Single Matrix
-    design_matrix = np.concatenate([running_regressors, visual_stimuli_regressors, bodycam_regressors], axis=1)
+    design_matrix = np.concatenate([visual_stimuli_regressors, running_regressors, bodycam_regressors], axis=1)
     print("Design Matrix", np.shape(design_matrix))
 
     return activity_matrix, design_matrix
 
 
 
-def perform_ridge_regression(base_directory, onset_lists, start_window, stop_window, activity_tensor_list, stimuli_list, video_file):
+def perform_ridge_regression(base_directory, onset_lists, start_window, stop_window, activity_tensor_list, stimuli_list, condition_1_bodycam_tensor, condition_2_bodycam_tensor):
 
     # Get Activity Tensors
     condition_1_activity_tensor = activity_tensor_list[0]
     condition_2_activity_tensor = activity_tensor_list[1]
-
     print("Condition 1 activity tensor", np.shape(condition_1_activity_tensor))
     print("Condition 2 activity tensor", np.shape(condition_2_activity_tensor))
+
+    condition_1_onsets = onset_lists[0]
+    condition_2_onsets = onset_lists[1]
+
 
     # Check We Have A Widefield To Mousecam Frame Dict
     if not os.path.exists(os.path.join(base_directory, "Stimuli_Onsets", "widfield_to_mousecam_frame_dict.npy")):
         Match_Mousecam_Frames_To_Widefield_Frames.match_mousecam_to_widefield_frames(base_directory)
-
-    # Get Mousecam Tensors
-    condition_1_bodycam_tensor, condition_2_bodycam_tensor, bodycam_components = Get_Bodycam_SVD_Tensor.get_bodycam_tensor_multiple_conditions(base_directory, video_file, onset_lists, start_window, stop_window)
-
-    print("Condition 1 bodycam tensor", np.shape(condition_1_bodycam_tensor))
-    print("Condition 2 bodycam tensor", np.shape(condition_2_bodycam_tensor))
-
 
     # Get Running Tensors
     downsampled_running_trace = np.load(os.path.join(base_directory, "Movement_Controls", "Downsampled_Running_Trace.npy"))
@@ -629,8 +625,10 @@ def perform_ridge_regression(base_directory, onset_lists, start_window, stop_win
     print("Condition 1 running tensor shape", np.shape(condition_1_running_tensor))
     print("Condition 2 running tensor shapee", np.shape(condition_2_running_tensor))
 
-    """
     # Create Visual Stimuli Regressors
+
+    print("Stimuli list", stimuli_list[0])
+    print("Stimuli list", stimuli_list[1])
     condition_1_stimuli_regressors = create_visual_stimuli_regressors(condition_1_onsets, start_window, stop_window, base_directory, stimuli_list[0], 1)
     condition_2_stimuli_regressors = create_visual_stimuli_regressors(condition_2_onsets, start_window, stop_window, base_directory, stimuli_list[1], 2)
 
@@ -665,7 +663,7 @@ def perform_ridge_regression(base_directory, onset_lists, start_window, stop_win
 
     np.save(os.path.join(save_directory, "Coefficients.npy"), coefficients)
     np.save(os.path.join(save_directory, "Intercepts.npy"), intercepts)
-    np.save(os.path.join(save_directory, "Ridge_Regression_Bodycam_Components.npy"), bodycam_components)
-    """
+    #np.save(os.path.join(save_directory, "Ridge_Regression_Bodycam_Components.npy"), bodycam_components)
+
 
 

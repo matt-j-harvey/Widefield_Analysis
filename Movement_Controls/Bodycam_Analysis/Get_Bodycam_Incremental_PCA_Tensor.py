@@ -447,10 +447,10 @@ def get_bodycam_tensor_multiple_conditions(base_directory, video_file, onsets_gr
     mousecam_onsets = convert_widefield_onsets_into_mousecam_onsets(base_directory, onsets_list)
 
     # Convert Widefield Start and Stop Windows Into Mousecam Windows
-    mousecam_start_window, mousecam_stop_window = get_mousecam_trial_windows(base_directory, onsets_list, start_window, stop_window)
+    #mousecam_start_window, mousecam_stop_window = get_mousecam_trial_windows(base_directory, onsets_list, start_window, stop_window)
 
     # Get Motion Energy PCA
-    transformed_data, components = incremental_mousecam_pca(base_directory, video_file, mousecam_onsets, mousecam_start_window-1, mousecam_stop_window)
+    transformed_data, components = incremental_mousecam_pca(base_directory, video_file, mousecam_onsets, start_window-1, stop_window)
 
     # View These Mousecam Components For A Sanity Check
     #visualise_mousecam_components(components, base_directory, video_file)

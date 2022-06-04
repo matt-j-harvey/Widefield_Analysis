@@ -245,7 +245,7 @@ def create_activity_tensor(base_directory, onsets_file_list, trial_start, trial_
 
 
     # Load Delta F Matrix
-    delta_f_matrix_filepath = os.path.join(base_directory, "Delta_F_Registered.hdf5")
+    delta_f_matrix_filepath = os.path.join(base_directory, "Delta_F.hdf5")
     delta_f_matrix_container = h5py.File(delta_f_matrix_filepath, 'r')
     delta_f_matrix = delta_f_matrix_container['Data']
 

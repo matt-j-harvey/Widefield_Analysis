@@ -587,8 +587,16 @@ def create_generic_comparison_video_3_conditions_behaviour(base_directory, mean_
         # Scale Difference Images To Between 0 and 1
         difference_image = scale_difference_image(difference_image)
 
+        # Scale Colouring
+        condition_1_activity_image = np.multiply(condition_1_activity_image, 1.2)
+        condition_2_activity_image = np.multiply(condition_2_activity_image, 1.2)
+        condition_3_activity_image = np.multiply(condition_3_activity_image, 1.2)
+        #difference_image =
+        #difference_image = np.clip(difference_image, a_min=0, a_max=1)
+
         # Convert These To Colours
         delta_f_colourmap = cm.get_cmap('jet')
+        #delta_f_colourmap.set_clim(vmin=0, vmax=0.7)
         difference_colourmap = cm.get_cmap('bwr')
 
         condition_1_activity_image = delta_f_colourmap(condition_1_activity_image)
@@ -694,6 +702,12 @@ def create_generic_comparison_video_3_conditions_behaviour(base_directory, mean_
         condition_1_behaviour_axis.axvline(x=0, ymin=0, ymax=1, c='k', linestyle=(0, (5,5)))
         condition_2_behaviour_axis.axvline(x=0, ymin=0, ymax=1, c='k', linestyle=(0, (5,5)))
         condition_3_behaviour_axis.axvline(x=0, ymin=0, ymax=1, c='k', linestyle=(0, (5,5)))
+
+        current_time = 0 + (trial_start * 36) + (timepoint * 36)
+
+        condition_1_behaviour_axis.axvline(x=current_time, ymin=0, ymax=1, c='b')
+        condition_2_behaviour_axis.axvline(x=current_time, ymin=0, ymax=1, c='b')
+        condition_3_behaviour_axis.axvline(x=current_time, ymin=0, ymax=1, c='b')
 
 
         # Plot Beahviour Lengend
