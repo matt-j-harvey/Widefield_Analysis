@@ -110,4 +110,4 @@ for session in session_list:
     #visualise_coefficients(session, regression_coefficients)
     #visualise_coefficients(session, partial_determination_matrix)
 
-    visualise_coefficients(session, error)
+    #visualise_coefficients(session, error)
