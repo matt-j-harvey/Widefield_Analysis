@@ -473,10 +473,10 @@ criterion = torch.nn.MSELoss()
 learning_rate = 0.0001
 n_iters = 100
 print_steps = 100
-previous_loss_window_size = 1000
+previous_loss_window_size = 10
 
 # Load Neural Data
-base_directory = r"C:\Users\matth\Documents\Functional-Connectivity_V2\Parcellated_Delta_F\NXAK7.1B\2021_02_22_Discrimination_Imaging"
+base_directory = r"/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_04_Discrimination_Imaging"
 activity_matrix = np.load(os.path.join(base_directory, "Cluster_Activity_Matrix.npy"))
 print("Delta F Matrix Shape", np.shape(activity_matrix))
 

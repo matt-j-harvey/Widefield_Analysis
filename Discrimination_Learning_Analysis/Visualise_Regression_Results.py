@@ -10,6 +10,8 @@ import sys
 from matplotlib import cm
 import h5py
 
+from scipy import ndimage
+
 sys.path.append("/home/matthew/Documents/Github_Code/Widefield_Preprocessing")
 import Widefield_General_Functions
 
@@ -35,15 +37,21 @@ def load_generous_mask(home_directory):
 
 
 def visualise_coefficients(base_directory, coefficients):
+    coefficients = np.nan_to_num(coefficients)
 
     indicies, image_height, image_width = load_generous_mask(base_directory)
 
     number_of_dimensions = np.ndim(coefficients)
+    max_coefficient = np.percentile(coefficients, q=99.5)
+    min_coefficient = np.min(coefficients)
+    print("Max Coefficinets", max_coefficient)
+    print("MIN Coeffi", min_coefficient)
 
     if number_of_dimensions == 1:
         image = Widefield_General_Functions.create_image_from_data(coefficients, indicies, image_height, image_width)
         plt.imshow(image)
         plt.show()
+
 
     elif number_of_dimensions == 2:
 
@@ -57,8 +65,10 @@ def visualise_coefficients(base_directory, coefficients):
 
         for x in range(nuber_of_samples):
             image = Widefield_General_Functions.create_image_from_data(coefficients[x], indicies, image_height, image_width)
+            image = ndimage.gaussian_filter(image, sigma=1)
             plt.title(str(x))
-            plt.imshow(image)
+            plt.imshow(image, cmap='viridis')
+            #vmin=0, vmax=max_coefficient
             plt.draw()
             plt.pause(0.1)
             plt.clf()
@@ -79,11 +89,13 @@ session_list = [
 ]
 
 
+
+
 for session in session_list:
 
     # Load Dictionary
     regression_dictionary = np.load(os.path.join(session, "Simple_Regression", "Simple_Regression_Model.npy"), allow_pickle=True)[()]
-    print(regression_dictionary)
+    print(regression_dictionary.keys())
 
     # Extract Items Of Interest
     regression_coefficients = regression_dictionary["Regression_Coefficients"]
@@ -94,6 +106,8 @@ for session in session_list:
     condition_2 = regression_dictionary["Condition_2"]
     start_window = regression_dictionary["Start_Window"]
     stop_window = regression_dictionary["Stop_Window"]
+    error = regression_dictionary['Full_Sum_Sqaure_Error']
+    #visualise_coefficients(session, regression_coefficients)
+    #visualise_coefficients(session, partial_determination_matrix)
 
-    visualise_coefficients(session, regression_coefficients)
-    visualise_coefficients(session, partial_determination_matrix)
+    visualise_coefficients(session, error)

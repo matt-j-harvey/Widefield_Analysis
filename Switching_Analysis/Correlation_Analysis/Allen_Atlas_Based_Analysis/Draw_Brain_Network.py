@@ -43,7 +43,7 @@ def draw_brain_network(cluster_centroids, cluster_outlines, adjacency_matrix, se
 
     plt.title(session_name)
     plt.imshow(cluster_outlines, cmap='binary')
-    nx.draw(graph, pos=inverted_centroids, node_size=1,  width=weights, edge_color=colours)
+    nx.draw(graph, pos=cluster_centroids, node_size=1, edge_color=colours) #width=weights, edge_color=colours
     plt.show()
     #plt.savefig(base_directory + "/" + session_name + "_Signficant_Correlation_Changes.png")
     #plt.close()
@@ -131,3 +131,5 @@ def draw_brain_network_single_colour(cluster_centroids, cluster_outlines, adjace
     plt.show()
     #plt.savefig(base_directory + "/" + session_name + "_Signficant_Correlation_Changes.png")
     #plt.close()
+
+

@@ -195,7 +195,7 @@ mutants = [
 
 save_directory = "/home/matthew/Documents/NMF_Parcellation_Data"
 
-cluster_affinity_matrix()
+#cluster_affinity_matrix()
 """
 # Load Data
 tensor_list = []

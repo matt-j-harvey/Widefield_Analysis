@@ -36,7 +36,7 @@ def normalise_activity_matrix(activity_matrix):
 
 
 
-def load_activity_tensors(delta_f_matrix, onset_list, start_window, stop_window):
+def load_activity_tensors(delta_f_matrix, onset_list, start_window, stop_window, preceeding_window=5):
 
     # Create Empty Lists To Hold Data
     activity_tensor = []
@@ -51,25 +51,30 @@ def load_activity_tensors(delta_f_matrix, onset_list, start_window, stop_window)
 
         # Extract Trial Data and Shifted Trial Data
         trial_data = delta_f_matrix[trial_start:trial_stop]
-        preceeding_trial_data = delta_f_matrix[trial_start-3:trial_stop-3]
+        lagged_preceeding_actiity_list = []
+        for x in range(1, preceeding_window+1):
+            preceeding_trial_data = delta_f_matrix[trial_start-x:trial_stop-x]
+            lagged_preceeding_actiity_list.append(preceeding_trial_data)
 
         # Add These To Respective Lists
         activity_tensor.append(trial_data)
-        preceeding_activity_tensor.append(preceeding_trial_data)
+        preceeding_activity_tensor.append(lagged_preceeding_actiity_list)
 
     # Convert Lists To Arrays
     activity_tensor = np.array(activity_tensor)
     preceeding_activity_tensor = np.array(preceeding_activity_tensor)
     print("Activity tensor shape", np.shape(activity_tensor))
+
     # Flatten These
     number_of_trials = len(onset_list)
     trial_length = stop_window - start_window
     number_of_regions = np.shape(activity_tensor)[2]
 
     activity_tensor = np.reshape(activity_tensor, (number_of_trials * trial_length, number_of_regions))
-    preceeding_activity_tensor = np.reshape(preceeding_activity_tensor, (number_of_trials * trial_length, number_of_regions))
+    preceeding_activity_tensor = np.reshape(preceeding_activity_tensor, (number_of_trials * trial_length, preceeding_window * number_of_regions))
 
     return activity_tensor, preceeding_activity_tensor
+
 
 def create_stimuli_regressors(stimuli_trials, trial_length, stimuli_regressor_matrix, start_index, stimuli_index):
 
@@ -88,21 +93,22 @@ def create_stimuli_regressors(stimuli_trials, trial_length, stimuli_regressor_ma
 
 
 
-def fit_mvar_model(delta_f_matrix, onset_group_list, start_window, stop_window):
+def fit_mvar_model(delta_f_matrix, onset_group_list, start_window, stop_window, preceeding_window):
 
 
     # Load Activity Tensors
     activity_tensor_list = []
     preceeding_activity_tensor_list = []
     for onset_group in onset_group_list:
-        activity_tensor, preceeding_activity_tensor = load_activity_tensors(delta_f_matrix, onset_group, start_window, stop_window)
+        activity_tensor, preceeding_activity_tensor = load_activity_tensors(delta_f_matrix, onset_group, start_window, stop_window, preceeding_window)
+        print("Activity Tensor", np.shape(activity_tensor))
+        print("Preceeding Activity Tenspr", np.shape(preceeding_activity_tensor))
         activity_tensor_list.append(activity_tensor)
         preceeding_activity_tensor_list.append(preceeding_activity_tensor)
 
     # Combine Tensors
     activity_tensor_list = np.vstack(activity_tensor_list)
     preceeding_activity_tensor_list = np.vstack(preceeding_activity_tensor_list)
-    delta_activity_tensor = np.subtract(activity_tensor_list, preceeding_activity_tensor_list)
 
     # Get Total Number Of Trials
     total_number_of_trials = 0
@@ -133,10 +139,12 @@ def fit_mvar_model(delta_f_matrix, onset_group_list, start_window, stop_window):
     """
 
     # Transpose These Tensors
-    delta_activity_tensor = np.transpose(delta_activity_tensor)
     preceeding_activity_tensor_list = np.transpose(preceeding_activity_tensor_list)
     stimuli_regressor_matrix = np.transpose(stimuli_regressor_matrix)
-    #running_regressor_list = np.transpose(running_regressor_list)
+
+    print("Preceeding activity tensor list", np.shape(preceeding_activity_tensor_list))
+    print("Stimuli Regressor Matrix", np.shape(stimuli_regressor_matrix))
+    number_of_stimuli_regressors = np.shape(stimuli_regressor_matrix)[0]
 
     # Create Design Matrix - Will be X
     design_matrix = np.vstack([preceeding_activity_tensor_list, stimuli_regressor_matrix])
@@ -147,10 +155,10 @@ def fit_mvar_model(delta_f_matrix, onset_group_list, start_window, stop_window):
     print("Activity tensor list", np.shape(activity_tensor_list))
 
     # Iterate Through Each Region
-    number_of_regions = np.shape(delta_activity_tensor)[0]
+    number_of_regions = np.shape(activity_tensor_list)[0]
 
     # Create Model
-    model = LinearRegression(fit_intercept=False)
+    model = Ridge(fit_intercept=True)
 
     # Iterate Through Each Region
     coef_list = []
@@ -163,9 +171,17 @@ def fit_mvar_model(delta_f_matrix, onset_group_list, start_window, stop_window):
         coef_list.append(coefs)
 
     coef_list = np.array(coef_list)
+    print("Coef List Shape", np.shape(coef_list))
+
+    # Get Recurrent Coefs
+    recurrent_regressors = coef_list[:, 0:-number_of_stimuli_regressors]
+
+    # Reshape These
+    recurrent_regressors = np.reshape(recurrent_regressors, (number_of_regions, preceeding_window, number_of_regions))
+    connectivity_matrix = np.mean(recurrent_regressors, axis=1)
 
 
-    connectivity_matrix = coef_list[:, 0:number_of_regions]
+    #connectivity_matrix = coef_list[:, 0:number_of_regions]
 
     return connectivity_matrix
 
@@ -204,11 +220,12 @@ activity_matrix = activity_matrix[:, 1:]
 vis_1_onsets = np.load(os.path.join(base_directory, "Stimuli_Onsets", condition_1))
 vis_2_onsets = np.load(os.path.join(base_directory, "Stimuli_Onsets", condition_2))
 
-
-connectivity_matrix = fit_mvar_model(activity_matrix, [vis_1_onsets, vis_2_onsets], start_window, stop_window)
-plt.imshow(connectivity_matrix)
+preceeding_window=5
+connectivity_matrix = fit_mvar_model(activity_matrix, [vis_1_onsets, vis_2_onsets], start_window, stop_window, preceeding_window)
+connectivity_magnitude = np.max(np.abs(connectivity_matrix))
+plt.imshow(connectivity_matrix, cmap='jet')
 plt.show()
 
 connectivity_matrix = sort_matrix(connectivity_matrix)
-plt.imshow(connectivity_matrix)
+plt.imshow(connectivity_matrix, cmap='jet')
 plt.show()

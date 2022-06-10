@@ -42,6 +42,7 @@ def get_activity_tensor(activity_matrix, onset_list, start_window, stop_window):
     for onset in onset_list:
 
         if onset > 1500:
+
             trial_start = onset + start_window
             trial_stop = onset + stop_window
 
@@ -49,8 +50,8 @@ def get_activity_tensor(activity_matrix, onset_list, start_window, stop_window):
                 trial_activity = activity_matrix[trial_start:trial_stop]
                 activity_tensor.append(trial_activity)
 
-    activity_tensor = np.array(activity_tensor)
 
+    activity_tensor = np.array(activity_tensor)
     return activity_tensor
 
 
@@ -100,22 +101,15 @@ def get_noise_correlations(activity_matrix, condition_1_onsets, condition_2_onse
     return comined_correlation_matrix
 
 
-def get_signal_correlations(activity_matrix, condition_1_onsets, condition_2_onsets, start_window, stop_window):
-
-    condition_1_tensor = get_activity_tensor(activity_matrix, condition_1_onsets, start_window, stop_window)
-    condition_2_tensor = get_activity_tensor(activity_matrix, condition_2_onsets, start_window, stop_window)
-
-    condition_1_mean = np.mean(condition_1_tensor, axis=0)
-    condition_2_mean = np.mean(condition_2_tensor, axis=0)
-
-    combined_tensor = np.vstack([condition_1_mean, condition_2_mean])
-
-    comined_correlation_matrix = np.corrcoef(np.transpose(combined_tensor))
-    return comined_correlation_matrix
+def get_signal_correlations(activity_matrix, condition_onsets, start_window, stop_window):
+    condition_tensor = get_activity_tensor(activity_matrix, condition_onsets, start_window, stop_window)
+    condition_mean = np.mean(condition_tensor, axis=0)
+    correlation_matrix = np.corrcoef(np.transpose(condition_mean))
+    return correlation_matrix
 
 
 
-def analyse_noise_correlations(base_directory, visualise=False):
+def analyse_signal_correlations(base_directory, visualise=False):
 
     # Settings
     condition_1 = "visual_1_all_onsets.npy"
@@ -140,22 +134,27 @@ def analyse_noise_correlations(base_directory, visualise=False):
     vis_2_onsets = np.load(os.path.join(base_directory, "Stimuli_Onsets", condition_2))
 
     # Get Noise Correlations
-    noise_correlation_matrix = get_noise_correlations_single_stimuli(activity_matrix, vis_onsets, start_window, stop_window)
-    signal_correlation_matrix = get_noise_correlations_single_stimuli(activity_matrix, vis_onsets, start_window, stop_window)
+    vis_1_signal_correlation_matrix = get_signal_correlations(activity_matrix, vis_1_onsets, start_window, stop_window)
+    vis_2_signal_correlation_matrix = get_signal_correlations(activity_matrix, vis_2_onsets, start_window, stop_window)
 
     if visualise == True:
         figure_1 = plt.figure()
-        signal_axis = figure_1.add_subplot(1,2,1)
-        noise_axis = figure_1.add_subplot(1,2,2)
 
-        signal_axis.imshow(signal_correlation_matrix, cmap='bwr', vmin=-1, vmax=1)
-        noise_axis.imshow(noise_correlation_matrix, cmap='bwr', vmin=-1, vmax=1)
+        rows = 1
+        columns = 2
 
-        signal_axis.set_title("Signal Correlation")
-        noise_axis.set_title("Noise Correlation")
+        vis_1_signal_axis = figure_1.add_subplot(1,2,rows)
+        vis_2_signal_axis = figure_1.add_subplot(1,2,columns)
+
+        vis_1_signal_axis.imshow(vis_1_signal_axis, cmap='bwr', vmin=-1, vmax=1)
+        vis_2_signal_axis.imshow(vis_2_signal_axis, cmap='bwr', vmin=-1, vmax=1)
+
+        vis_1_signal_axis.set_title("Vis 1 Signal Correlation")
+        vis_2_signal_axis.set_title("Vis 2 Signal Correlation")
 
         plt.show()
-    return noise_correlation_matrix
+
+    return vis_1_signal_correlation_matrix, vis_2_signal_correlation_matrix
 
 
 
@@ -222,24 +221,18 @@ def analyse_noise_correlations_over_learning(session_list):
 
 
 
-
-
-
-def analyse_noise_correlations_over_learning_seperate_stimuli(session_list, condition_1, condition_2, start_window, stop_window):
-
-    # Split Sessions By Performance
-
+def analyse_signal_correlations_over_learning_seperate_stimuli(session_list, condition_1, condition_2, start_window, stop_window):
 
     # Create Correlation Matrix List
-    condition_1_noise_correlation_matrix_list = []
-    condition_2_noise_correlation_matrix_list = []
+    condition_1_signal_correlation_matrix_list = []
+    condition_2_signal_correlation_matrix_list = []
 
     for session in session_list:
-        condition_1_noise_correlations = analyse_noise_correlations_single_stimuli(session, condition_1, start_window, stop_window)
-        condition_2_noise_correlations = analyse_noise_correlations_single_stimuli(session, condition_2, start_window, stop_window)
 
-        condition_1_noise_correlation_matrix_list.append(condition_1_noise_correlations)
-        condition_2_noise_correlation_matrix_list.append(condition_2_noise_correlations)
+        vis_1_signal_correlations, vis_2_signal_correlations = analyse_signal_correlations(session)
+
+        condition_1_signal_correlation_matrix_list.append(vis_1_signal_correlations)
+        condition_2_signal_correlation_matrix_list.append(vis_2_signal_correlations)
 
     # Plot All Matricies
     figure_1 = plt.figure()
@@ -252,8 +245,8 @@ def analyse_noise_correlations_over_learning_seperate_stimuli(session_list, cond
         condition_1_axis = figure_1.add_subplot(gridspec_1[0, session_index])
         condition_2_axis = figure_1.add_subplot(gridspec_1[1, session_index])
 
-        condition_1_axis.imshow(condition_1_noise_correlation_matrix_list[session_index], cmap='bwr', vmin=-1, vmax=1)
-        condition_2_axis.imshow(condition_2_noise_correlation_matrix_list[session_index], cmap='bwr', vmin=-1, vmax=1)
+        condition_1_axis.imshow(condition_1_signal_correlation_matrix_list[session_index], cmap='jet') #vmin=-1, vmax=1
+        condition_2_axis.imshow(condition_2_signal_correlation_matrix_list[session_index], cmap='jet')# , vmin=-1, vmax=1
 
     plt.show()
 
@@ -314,65 +307,10 @@ def comapre_pre_and_post(meta_session_list):
 
 
 
-session_list = [
-
-
-    ["/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_01_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_03_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_05_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_07_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_09_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_11_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_13_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_15_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_17_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_19_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_22_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_24_Discrimination_Imaging"],
-
-    ["/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_04_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_06_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_08_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_10_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_12_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_14_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_22_Discrimination_Imaging"],
-
-    ["/media/matthew/Expansion/Widefield_Analysis/NXAK14.1A/2021_04_29_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK14.1A/2021_05_01_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK14.1A/2021_05_03_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK14.1A/2021_05_05_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK14.1A/2021_05_07_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK14.1A/2021_05_09_Discrimination_Imaging"],
-
-    ["/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK22.1A/2021_09_25_Discrimination_Imaging",
-    "/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK22.1A/2021_09_29_Discrimination_Imaging",
-    "/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK22.1A//2021_10_01_Discrimination_Imaging",
-    "/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK22.1A/2021_10_03_Discrimination_Imaging",
-    "/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK22.1A/2021_10_05_Discrimination_Imaging",
-    "/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK22.1A/2021_10_07_Discrimination_Imaging",
-    "/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK22.1A/2021_10_08_Discrimination_Imaging"],
-
-    ["/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NRXN78.1D/2020_11_15_Discrimination_Imaging",
-    "/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NRXN78.1D/2020_11_16_Discrimination_Imaging",
-    "/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NRXN78.1D/2020_11_17_Discrimination_Imaging",
-    "/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NRXN78.1D/2020_11_19_Discrimination_Imaging",
-    "/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NRXN78.1D/2020_11_23_Discrimination_Imaging",
-    "/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NRXN78.1D/2020_11_25_Discrimination_Imaging",
-    "/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NRXN78.1D/2020_11_14_Discrimination_Imaging"],
-
-    ["/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NRXN78.1A/2020_11_15_Discrimination_Imaging",
-    "/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NRXN78.1A/2020_11_16_Discrimination_Imaging",
-    "/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NRXN78.1A/2020_11_17_Discrimination_Imaging",
-    "/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NRXN78.1A/2020_11_19_Discrimination_Imaging",
-    "/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NRXN78.1A/2020_11_21_Discrimination_Imaging",
-    "/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NRXN78.1A/2020_11_24_Discrimination_Imaging"],
-]
 
 
 
 session_list = [
-
     "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_04_Discrimination_Imaging",
     "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_06_Discrimination_Imaging",
     "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_08_Discrimination_Imaging",
@@ -383,9 +321,8 @@ session_list = [
 
 
 
-
-start_window = -10
+start_window = -7
 stop_window = 14
 condition_1 = "visual_1_all_onsets.npy"
 condition_2 = "visual_2_all_onsets.npy"
-analyse_noise_correlations_over_learning_seperate_stimuli(session_list, condition_1, condition_2, start_window, stop_window)
+analyse_signal_correlations_over_learning_seperate_stimuli(session_list, condition_1, condition_2, start_window, stop_window)

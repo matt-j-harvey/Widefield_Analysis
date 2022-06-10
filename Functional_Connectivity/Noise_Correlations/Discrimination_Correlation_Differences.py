@@ -40,17 +40,14 @@ def get_activity_tensor(activity_matrix, onset_list, start_window, stop_window):
     activity_tensor = []
 
     for onset in onset_list:
+        trial_start = onset + start_window
+        trial_stop = onset + stop_window
 
-        if onset > 1500:
-            trial_start = onset + start_window
-            trial_stop = onset + stop_window
-
-            if trial_stop < np.shape(activity_matrix)[0]:
-                trial_activity = activity_matrix[trial_start:trial_stop]
-                activity_tensor.append(trial_activity)
+        if trial_stop < np.shape(activity_matrix)[0]:
+            trial_activity = activity_matrix[trial_start:trial_stop]
+            activity_tensor.append(trial_activity)
 
     activity_tensor = np.array(activity_tensor)
-
     return activity_tensor
 
 
@@ -222,40 +219,41 @@ def analyse_noise_correlations_over_learning(session_list):
 
 
 
-
-
-
 def analyse_noise_correlations_over_learning_seperate_stimuli(session_list, condition_1, condition_2, start_window, stop_window):
 
-    # Split Sessions By Performance
-
-
     # Create Correlation Matrix List
-    condition_1_noise_correlation_matrix_list = []
-    condition_2_noise_correlation_matrix_list = []
+    difference_matrix_list = []
 
     for session in session_list:
         condition_1_noise_correlations = analyse_noise_correlations_single_stimuli(session, condition_1, start_window, stop_window)
         condition_2_noise_correlations = analyse_noise_correlations_single_stimuli(session, condition_2, start_window, stop_window)
 
-        condition_1_noise_correlation_matrix_list.append(condition_1_noise_correlations)
-        condition_2_noise_correlation_matrix_list.append(condition_2_noise_correlations)
+        """
+        plt.imshow(condition_1_noise_correlations)
+        plt.show()
+
+        plt.imshow(condition_2_noise_correlations)
+        plt.show()
+        """
+
+        difference_matrix = np.subtract(condition_1_noise_correlations, condition_2_noise_correlations)
+        difference_matrix_list.append(difference_matrix)
 
     # Plot All Matricies
+    """
     figure_1 = plt.figure()
     number_of_sessions = len(session_list)
-    rows = 2
+    rows = 1
     columns = number_of_sessions
     gridspec_1 = GridSpec(rows, columns)
 
     for session_index in range(number_of_sessions):
-        condition_1_axis = figure_1.add_subplot(gridspec_1[0, session_index])
-        condition_2_axis = figure_1.add_subplot(gridspec_1[1, session_index])
-
-        condition_1_axis.imshow(condition_1_noise_correlation_matrix_list[session_index], cmap='bwr', vmin=-1, vmax=1)
-        condition_2_axis.imshow(condition_2_noise_correlation_matrix_list[session_index], cmap='bwr', vmin=-1, vmax=1)
-
+        session_axis = figure_1.add_subplot(gridspec_1[0, session_index])
+        session_axis.imshow(difference_matrix_list[session_index], cmap='bwr', vmin=-1, vmax=1)
     plt.show()
+    """
+
+    return difference_matrix_list[0], difference_matrix_list[-1]
 
     """
     final_difference = np.subtract(noise_correlation_matrix_list[2], noise_correlation_matrix_list[-1])
@@ -369,7 +367,7 @@ session_list = [
     "/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NRXN78.1A/2020_11_24_Discrimination_Imaging"],
 ]
 
-
+"""
 
 session_list = [
 
@@ -380,12 +378,32 @@ session_list = [
     "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_12_Discrimination_Imaging",
     "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_14_Discrimination_Imaging",
     "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_22_Discrimination_Imaging"]
-
-
+"""
 
 
 start_window = -10
 stop_window = 14
 condition_1 = "visual_1_all_onsets.npy"
 condition_2 = "visual_2_all_onsets.npy"
-analyse_noise_correlations_over_learning_seperate_stimuli(session_list, condition_1, condition_2, start_window, stop_window)
+
+pre_diff_list = []
+post_diff_list = []
+
+for group in session_list:
+    pre_diff, post_diff = analyse_noise_correlations_over_learning_seperate_stimuli(group, condition_1, condition_2, start_window, stop_window)
+    pre_diff_list.append(pre_diff)
+    post_diff_list.append(post_diff)
+
+pre_diff_mean = np.mean(pre_diff_list, axis=0)
+magnitude = np.max(np.abs(pre_diff_mean))
+plt.imshow(pre_diff_mean, cmap='bwr', vmin=-magnitude, vmax=magnitude)
+plt.show()
+
+post_diff_mean = np.mean(post_diff_list, axis=0)
+magnitude = np.max(np.abs(post_diff_mean))
+plt.imshow(post_diff_mean, cmap='bwr', vmin=-magnitude, vmax=magnitude)
+plt.show()
+
+t_scores, p_scores = stats.ttest_rel(pre_diff_list, post_diff_list, axis=0)
+plt.imshow(t_scores)
+plt.show()

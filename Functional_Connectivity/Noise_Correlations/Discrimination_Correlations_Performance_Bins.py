@@ -159,6 +159,31 @@ def analyse_noise_correlations(base_directory, visualise=False):
 
 
 
+def split_sessions_By_d_prime(session_list, intermediate_threshold, post_threshold):
+
+    pre_learning_sessions = []
+    intermediate_learning_sessions = []
+    post_learning_sessions = []
+
+    # Iterate Throug Sessions
+    for session in session_list:
+
+        # Load D Prime
+        behavioural_dictionary = np.load(os.path.join(session, "Behavioural_Measures", "Performance_Dictionary.npy"), allow_pickle=True)[()]
+        d_prime = behavioural_dictionary["visual_d_prime"]
+
+        if d_prime >= post_threshold:
+            post_learning_sessions.append(session)
+
+        if d_prime < post_threshold and d_prime >= intermediate_threshold:
+            intermediate_learning_sessions.append(session)
+
+        if d_prime < intermediate_threshold:
+            pre_learning_sessions.append(session)
+
+    return pre_learning_sessions, intermediate_learning_sessions, post_learning_sessions
+
+
 def analyse_noise_correlations_single_stimuli(base_directory, condition, start_window, stop_window, visualise=False):
 
     # Settings
@@ -224,11 +249,7 @@ def analyse_noise_correlations_over_learning(session_list):
 
 
 
-
-def analyse_noise_correlations_over_learning_seperate_stimuli(session_list, condition_1, condition_2, start_window, stop_window):
-
-    # Split Sessions By Performance
-
+def get_noise_correlations_for_session_list(session_list, condition_1, condition_2, start_window, stop_window):
 
     # Create Correlation Matrix List
     condition_1_noise_correlation_matrix_list = []
@@ -241,21 +262,78 @@ def analyse_noise_correlations_over_learning_seperate_stimuli(session_list, cond
         condition_1_noise_correlation_matrix_list.append(condition_1_noise_correlations)
         condition_2_noise_correlation_matrix_list.append(condition_2_noise_correlations)
 
+    condition_1_noise_correlation_matrix_list = np.array(condition_1_noise_correlation_matrix_list)
+    condition_2_noise_correlation_matrix_list = np.array(condition_2_noise_correlation_matrix_list)
+
+    mean_condition_1_matrix = np.mean(condition_1_noise_correlation_matrix_list, axis=0)
+    mean_condition_2_matrix = np.mean(condition_2_noise_correlation_matrix_list, axis=0)
+
+    print("Mean condition 1 matrix", np.shape(mean_condition_1_matrix))
+    return mean_condition_1_matrix, mean_condition_2_matrix
+
+
+
+def analyse_noise_correlations_over_learning_seperate_stimuli(session_list, condition_1, condition_2, start_window, stop_window):
+
+    # Split Sessions By Performance
+    intermediate_threshold = 1
+    post_threshold = 2
+    pre_learning_sessions, intermediate_learning_sessions, post_learning_sessions = split_sessions_By_d_prime(session_list, intermediate_threshold, post_threshold)
+
+
+    # Get Correlation Matricies For Each Performance Class
+    pre_learning_vis_1_noise_correlations, pre_learning_vis_2_noise_correlations = get_noise_correlations_for_session_list(pre_learning_sessions, condition_1, condition_2, start_window, stop_window)
+    pre_learning_difference = np.subtract(pre_learning_vis_1_noise_correlations, pre_learning_vis_2_noise_correlations)
+
+    intermediate_vis_1_noise_correlations, intermediate_vis_2_noise_correlations = get_noise_correlations_for_session_list(intermediate_learning_sessions, condition_1, condition_2, start_window, stop_window)
+    intermediate_learning_difference = np.subtract(intermediate_vis_1_noise_correlations, intermediate_vis_2_noise_correlations)
+
+    post_learning_vis_1_noise_correlations, post_learning_vis_2_noise_correlations = get_noise_correlations_for_session_list(post_learning_sessions, condition_1, condition_2, start_window, stop_window)
+    post_learning_difference = np.subtract(post_learning_vis_1_noise_correlations, post_learning_vis_2_noise_correlations)
+
+
     # Plot All Matricies
     figure_1 = plt.figure()
     number_of_sessions = len(session_list)
-    rows = 2
-    columns = number_of_sessions
+    rows = 3
+    columns = 3
     gridspec_1 = GridSpec(rows, columns)
 
-    for session_index in range(number_of_sessions):
-        condition_1_axis = figure_1.add_subplot(gridspec_1[0, session_index])
-        condition_2_axis = figure_1.add_subplot(gridspec_1[1, session_index])
 
-        condition_1_axis.imshow(condition_1_noise_correlation_matrix_list[session_index], cmap='bwr', vmin=-1, vmax=1)
-        condition_2_axis.imshow(condition_2_noise_correlation_matrix_list[session_index], cmap='bwr', vmin=-1, vmax=1)
+    # Create Axes
+    pre_learning_vis_1_axis = figure_1.add_subplot(gridspec_1[0, 0])
+    pre_learning_vis_2_axis = figure_1.add_subplot(gridspec_1[1, 0])
+    pre_learning_diff_axis = figure_1.add_subplot(gridspec_1[2, 0])
+
+    intermediate_vis_1_axis = figure_1.add_subplot(gridspec_1[0, 1])
+    intermediate_vis_2_axis = figure_1.add_subplot(gridspec_1[1, 1])
+    intermediate_learning_diff_axis = figure_1.add_subplot(gridspec_1[2, 1])
+
+    post_learning_vis_1_axis = figure_1.add_subplot(gridspec_1[0, 2])
+    post_learning_vis_2_axis = figure_1.add_subplot(gridspec_1[1, 2])
+    post_learning_diff_axis = figure_1.add_subplot(gridspec_1[2, 2])
+
+
+    # Plot Items
+    pre_learning_vis_1_axis.imshow(pre_learning_vis_1_noise_correlations, cmap='bwr', vmin=-1, vmax=1)
+    pre_learning_vis_2_axis.imshow(pre_learning_vis_2_noise_correlations, cmap='bwr', vmin=-1, vmax=1)
+    pre_learning_diff_axis.imshow(pre_learning_difference, cmap='bwr', vmin=-1, vmax=1)
+
+    intermediate_vis_1_axis.imshow(intermediate_vis_1_noise_correlations, cmap='bwr', vmin=-1, vmax=1)
+    intermediate_vis_2_axis.imshow(intermediate_vis_2_noise_correlations, cmap='bwr', vmin=-1, vmax=1)
+    intermediate_learning_diff_axis.imshow(intermediate_learning_difference, cmap='bwr', vmin=-1, vmax=1)
+
+    post_learning_vis_1_axis.imshow(post_learning_vis_1_noise_correlations, cmap='bwr', vmin=-1, vmax=1)
+    post_learning_vis_2_axis.imshow(post_learning_vis_2_noise_correlations, cmap='bwr', vmin=-1, vmax=1)
+    post_learning_diff_axis.imshow(post_learning_difference, cmap='bwr', vmin=-1, vmax=1)
 
     plt.show()
+
+    np.save("/media/matthew/Expansion/Widefield_Analysis/Discrimination_Analysis/Noise_Correlation_Changes/Post_Learning_Changes/Pre_Learning_Vis_1.npy", pre_learning_vis_1_noise_correlations)
+    np.save("/media/matthew/Expansion/Widefield_Analysis/Discrimination_Analysis/Noise_Correlation_Changes/Post_Learning_Changes/Intermediate_Learning_Vis_1.npy", intermediate_vis_1_noise_correlations)
+    np.save("/media/matthew/Expansion/Widefield_Analysis/Discrimination_Analysis/Noise_Correlation_Changes/Post_Learning_Changes/Post_Learning_Vis_1.npy", post_learning_vis_1_noise_correlations)
+
+    np.save("/media/matthew/Expansion/Widefield_Analysis/Discrimination_Analysis/Noise_Correlation_Changes/Post_Learning_Changes/Post_learning_Differences.npy", post_learning_difference)
 
     """
     final_difference = np.subtract(noise_correlation_matrix_list[2], noise_correlation_matrix_list[-1])

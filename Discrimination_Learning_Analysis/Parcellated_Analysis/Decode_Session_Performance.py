@@ -233,11 +233,52 @@ def perform_decoding(delta_f_matrix, condition_1_onsets, condition_2_onsets, sta
 
 
 
+def load_session_data(base_directory, condition, start_window, stop_window):
+
+    # Load Neural Data
+    activity_matrix = np.load(os.path.join(base_directory, "Cluster_Activity_Matrix.npy"))
+
+    # Normalise Activity Matrix
+    activity_matrix = normalise_activity_matrix(activity_matrix)
+
+    # Remove Background Activity
+    activity_matrix = activity_matrix[:, 1:]
+
+    # Load Onsets
+    vis_1_onsets = np.load(os.path.join(base_directory, "Stimuli_Onsets", condition))
+
+    # Get Tensor
+    activity_tensor = get_trial_tensor(delta_f_matrix, condition_1_onsets, start_window, stop_window)
+
+    # Get d'Prime
+    behavioural_dictionary = np.load(os.path.join(session, "Behavioural_Measures", "Performance_Dictionary.npy"), allow_pickle=True)[()]
+    d_prime = behavioural_dictionary["visual_d_prime"]
+
+    # Create Labels
+    number_of_trials = np.shape(activity_tensor)[0]
+    d_prime_labels = np.ones(number_of_trials)
+    d_prime_labels = np.multiply(d_prime, d_prime_labels)
+
+    return activity_tensor, d_prime_labels
+
 
 
 def run_decoding_analysis(session_list, condition_1, condition_2, start_window, stop_window):
 
-    # Predict D Prime Of session
+    # Create Empty Lists To Hold Variables
+    datapoints = []
+    labels = []
+
+    # Get Trial Tensors And Labels Of Each Session
+    for session in session_list:
+
+        session_data, session_labels = load_session_data(session, condition, start_window, stop_window)
+
+        labels.append(session_labels)
+        datapoints.append(session_data)
+
+    datapoints = np.array(datapoints)
+    labels = np.array(labels)
 
 
 

@@ -57,6 +57,9 @@ def downsize_components(session, components, new_size=(300, 304)):
     downsized_components = []
     for component in components:
         component_image = create_image_from_data(component,  indicies, image_height, image_width)
+        plt.imshow(component_image)
+        plt.show()
+
         component_image = resize(component_image, new_size)
         component_image = np.ndarray.flatten(component_image)
         downsized_components.append(component_image)
@@ -117,7 +120,7 @@ def perform_clustering(session):
     downsized_components = downsize_components(session, nmf_components, new_size=downsample_size)
 
     # Create Connectivity Matrix
-    connectivity_matrix = create_connectivity_matrix_from_components(downsized_components)
+    #connectivity_matrix = create_connectivity_matrix_from_components(downsized_components)
 
     # Cluster Connectivity Matrix
     print("Clustering")
@@ -223,4 +226,4 @@ session_list = [
 for session in session_list:
     print("Session: ", session, datetime.now())
     perform_clustering(session)
-    view_clusters(session)
+    #view_clusters(session)

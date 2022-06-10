@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import sys
 from matplotlib import cm
 import h5py
+from datetime import datetime
 
 sys.path.append("/home/matthew/Documents/Github_Code/Widefield_Preprocessing")
 import Widefield_General_Functions
@@ -75,12 +76,16 @@ def perform_dimensionality_reduction(trial_tensor, n_components=3):
 def get_trial_tensor(delta_f_matrix, onset_list, start_window, stop_window):
 
     trial_tensor = []
+
+    onset_count = 0
+    number_of_onsets = len(onset_list)
     for onset in onset_list:
+        print("Onset: ", onset_count, " of ", number_of_onsets)
         trial_start = onset + start_window
         trial_stop = onset + stop_window
         trial_data = delta_f_matrix[trial_start:trial_stop]
         trial_tensor.append(trial_data)
-
+        onset_count += 1
     trial_tensor = np.array(trial_tensor)
     trial_tensor = np.nan_to_num(trial_tensor)
     return trial_tensor
@@ -101,17 +106,19 @@ def load_neural_data(base_directory, condition_1_onsets, condition_2_onsets, sta
     return condition_1_data, condition_2_data
 
 
+
 def load_behavioural_data(base_directory, condition_1_onsets, condition_2_onsets, start_window, stop_window):
 
     downsampled_running_trace, downsampled_lick_trace = downsample_ai_traces(base_directory)
 
-    condition_1_running_data = get_trial_tensor(fdownsampled_running_trace, condition_1_onsets, start_window, stop_window)
+    condition_1_running_data = get_trial_tensor(downsampled_running_trace, condition_1_onsets, start_window, stop_window)
     condition_2_running_data = get_trial_tensor(downsampled_running_trace, condition_2_onsets, start_window, stop_window)
 
     condition_1_lick_data = get_trial_tensor(downsampled_lick_trace, condition_1_onsets, start_window, stop_window)
     condition_2_lick_data = get_trial_tensor(downsampled_lick_trace, condition_2_onsets, start_window, stop_window)
 
     return condition_1_running_data, condition_2_running_data, condition_1_lick_data, condition_2_lick_data
+
 
 
 def perform_k_fold_cross_validation(data, labels, number_of_folds=5):
@@ -317,6 +324,7 @@ def get_coefficients_of_partial_determination(vis_1_delta_f, vis_2_delta_f, desi
     number_of_regressors = np.shape(design_matrix)[1]
     partial_determination_matrix = []
     for regresor_index in range(number_of_regressors):
+        print("Regressor", regresor_index, " of ", number_of_regressors, "at ", datetime.now())
 
         # Get Partial Design Matrix
         partial_design_marix = np.copy(design_matrix)
@@ -456,22 +464,39 @@ def visualise_decoding_over_learning(base_directory, session_list):
             axis.axis('off')
         plt.show()
 
+def remove_early_onsets(onsets, window=1500):
 
+    thresholded_onsets = []
 
+    for onset in onsets:
+        if onset > window:
+            thresholded_onsets.append(onset)
+
+    return thresholded_onsets
 
 
 session_list = [
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_04_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_06_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_08_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_10_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_12_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_14_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_22_Discrimination_Imaging"
+r"/media/matthew/Seagate Expansion Drive1/NXAK4.1A/2021_02_02_Discrimination_Imaging",
+r"/media/matthew/Seagate Expansion Drive1/NXAK4.1A/2021_02_04_Discrimination_Imaging",
+r"/media/matthew/Seagate Expansion Drive1/NXAK4.1A/2021_02_06_Discrimination_Imaging",
+r"/media/matthew/Seagate Expansion Drive1/NXAK4.1A/2021_02_08_Discrimination_Imaging",
+r"/media/matthew/Seagate Expansion Drive1/NXAK4.1A/2021_02_10_Discrimination_Imaging",
+r"/media/matthew/Seagate Expansion Drive1/NXAK4.1A/2021_02_12_Discrimination_Imaging",
+r"/media/matthew/Seagate Expansion Drive1/NXAK4.1A/2021_02_14_Discrimination_Imaging",
+r"/media/matthew/Seagate Expansion Drive1/NXAK4.1A/2021_02_16_Discrimination_Imaging",
+r"/media/matthew/Seagate Expansion Drive1/NXAK4.1A/2021_02_18_Discrimination_Imaging",
+r"/media/matthew/Seagate Expansion Drive1/NXAK4.1A/2021_02_23_Discrimination_Imaging",
+r"/media/matthew/Seagate Expansion Drive1/NXAK4.1A/2021_02_25_Discrimination_Imaging",
+r"/media/matthew/Seagate Expansion Drive1/NXAK4.1A/2021_02_27_Discrimination_Imaging",
+r"/media/matthew/Seagate Expansion Drive1/NXAK4.1A/2021_03_01_Discrimination_Imaging",
+r"/media/matthew/Seagate Expansion Drive1/NXAK4.1A/2021_03_03_Discrimination_Imaging",
+r"/media/matthew/Seagate Expansion Drive1/NXAK4.1A/2021_03_05_Discrimination_Imaging",
 ]
 
-start_window = -7
-stop_window = 14
+
+
+start_window = -14
+stop_window = 27
 condition_1 = "visual_1_all_onsets.npy"
 condition_2 = "visual_2_all_onsets.npy"
 
@@ -487,22 +512,32 @@ for session_index in range(len(session_list)):
         os.mkdir(output_directory)
 
     # Load Onsets
+    print("Loading onsets")
     vis_1_onsets = np.load(os.path.join(base_directory, "Stimuli_Onsets", condition_1))
     vis_2_onsets = np.load(os.path.join(base_directory, "Stimuli_Onsets", condition_2))
 
-    # Load Neural Data
-    vis_1_delta_f, vis_2_delta_f = load_neural_data(base_directory, vis_1_onsets, vis_2_onsets, start_window, stop_window)
+    # Remove Early Onsets
+    vis_1_onsets = remove_early_onsets(vis_1_onsets)
+    vis_2_onsets = remove_early_onsets(vis_2_onsets)
 
     # Load Behavioural Data
+    print("Loading Behavioural Data")
     vis_1_running_data, vis_2_running_data, vis_1_lick_data, vis_2_lick_data = load_behavioural_data(base_directory, vis_1_onsets, vis_2_onsets, start_window, stop_window)
 
+    # Load Neural Data
+    print("Loading Neural Data")
+    vis_1_delta_f, vis_2_delta_f = load_neural_data(base_directory, vis_1_onsets, vis_2_onsets, start_window, stop_window)
+
     # Create Design Matrix
+    print("Creating Design MAtrix")
     design_matrix = create_design_matrix(vis_1_delta_f, vis_2_delta_f, vis_1_running_data, vis_2_running_data, vis_1_lick_data, vis_2_lick_data)
 
     # Perform Regression
+    print("Performing Regression")
     regression_coefficients, r2, full_sum_squared_error = perform_regression(vis_1_delta_f, vis_2_delta_f, design_matrix)
 
     # Get Coefficients Of Partial Determination
+    print("Getting Coefficients of Partial Determination")
     partial_determination_matrix = get_coefficients_of_partial_determination(vis_1_delta_f, vis_2_delta_f, design_matrix, full_sum_squared_error)
 
     # Save Regression Results

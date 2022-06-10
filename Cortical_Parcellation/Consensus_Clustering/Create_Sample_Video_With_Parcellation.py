@@ -94,7 +94,7 @@ def create_parcellation_example_video(base_directory, sample_size=10000, smoothi
     data_file = os.path.join(base_directory, "Delta_F.hdf5")
     file_object = h5py.File(data_file, 'r')
     data_matrix = file_object["Data"]
-    data_sample = data_matrix[2000:2000 + sample_size + smoothing_window]
+    data_sample = data_matrix[1000:1000 + sample_size + smoothing_window]
 
     # Perform PCA Denosing
     data_sample = np.nan_to_num(data_sample)
@@ -156,4 +156,5 @@ def create_parcellation_example_video(base_directory, sample_size=10000, smoothi
 
 
 base_directory = r"/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_19_Discrimination_Imaging"
+base_directory = r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK22.1A/2021_10_05_Discrimination_Imaging"
 create_parcellation_example_video(base_directory)

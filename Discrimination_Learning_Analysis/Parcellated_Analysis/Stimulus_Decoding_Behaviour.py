@@ -276,8 +276,12 @@ def decode_based_on_behaviour(session_list, condition_1, condition_2, start_wind
 
     number_of_sessions = len(session_list)
     figure_1 = plt.figure()
-    rows = 1
-    columns = number_of_sessions
+    axis_1 = figure_1.add_subplot(1,1,1)
+
+    #rows = 1
+    #columns = number_of_sessions
+
+    colourmap = cm.get_cmap('plasma')
 
     for session_index in range(number_of_sessions):
         base_directory = session_list[session_index]
@@ -289,9 +293,15 @@ def decode_based_on_behaviour(session_list, condition_1, condition_2, start_wind
         # Perform Decoding
         decoding_performance = perform_decoding(base_directory, vis_1_onsets, vis_2_onsets, start_window, stop_window)
 
-        axis = figure_1.add_subplot(rows, columns, session_index + 1)
-        axis.plot(decoding_performance)
-        axis.set_ylim([0.4, 1])
+        session_colour = colourmap(float(session_index) / number_of_sessions)
+        x_values = np.linspace(start=start_window, stop=stop_window, num=len(decoding_performance))
+
+        axis_1.plot(x_values, decoding_performance, c=session_colour)
+        axis_1.set_ylim([0.4, 1])
+
+
+
+
     plt.show()
 
 
@@ -299,26 +309,18 @@ def decode_based_on_behaviour(session_list, condition_1, condition_2, start_wind
 
 
 session_list = [
-     "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_01_Discrimination_Imaging",
-     "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_03_Discrimination_Imaging",
-     "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_05_Discrimination_Imaging",
-     "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_07_Discrimination_Imaging",
-     "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_09_Discrimination_Imaging",
-     "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_11_Discrimination_Imaging",
-     "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_13_Discrimination_Imaging",
-     "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_15_Discrimination_Imaging",
-     "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_17_Discrimination_Imaging",
-     "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_19_Discrimination_Imaging",
-     "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_22_Discrimination_Imaging",
-     "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_24_Discrimination_Imaging"]
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_04_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_06_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_08_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_10_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_12_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_14_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_22_Discrimination_Imaging"]
 
 # Decoding Parameters
-start_window = -20
-stop_window = 56
+start_window = -28
+stop_window = 57
 condition_1 = "visual_1_all_onsets.npy"
 condition_2 = "visual_2_all_onsets.npy"
-
-
-
 
 decode_based_on_behaviour(session_list, condition_1, condition_2, start_window, stop_window)

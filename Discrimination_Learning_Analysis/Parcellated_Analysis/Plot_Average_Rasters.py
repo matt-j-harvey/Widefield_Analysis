@@ -192,14 +192,22 @@ session_list = [
      "/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NRXN78.1A/2020_11_24_Discrimination_Imaging"],
 ]
 
-session_list = [["/media/matthew/Seagate Expansion Drive2/No_Filter_Test"]]
+
+session_list = [
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_04_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_06_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_08_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_10_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_12_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_14_Discrimination_Imaging",
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_22_Discrimination_Imaging"]
 
 # Decoding Parameters
-start_window = -27
-stop_window = 56
+start_window = -28
+stop_window = 57
 condition_1 = "visual_1_all_onsets.npy"
 condition_2 = "visual_2_all_onsets.npy"
-plot_save_directory = "/media/matthew/Expansion/Widefield_Analysis/Discrimination_Analysis/Average_Rasters"
 
-for mouse in session_list:
-    plot_average_rasters(mouse, condition_1, condition_2, start_window, stop_window, plot_save_directory)
+plot_save_directory = r"/media/matthew/Expansion/Widefield_Analysis/Discrimination_Analysis/Average_Rasters/No_Filter"
+
+plot_average_rasters(session_list, condition_1, condition_2, start_window, stop_window, plot_save_directory)
