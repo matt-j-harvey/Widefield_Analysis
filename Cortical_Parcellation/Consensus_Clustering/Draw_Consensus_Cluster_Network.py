@@ -105,13 +105,32 @@ def threshold_matrix(matrix, percentile=50):
     thresholded_matrix = np.where(abs_matrix >= weight_threshold, matrix, 0)
     return thresholded_matrix
 
+def remove_noise_areas(connectivity_matirx):
 
+    noise_areas = [26, 28]
+
+    for region in noise_areas:
+        connectivity_matirx[region-1:] = 0
+        connectivity_matirx[:, region-1] = 0
+
+    return connectivity_matirx
 
 # Load Adjacency Matricies
+"""
 pre_learning_vis_1_noise_correlations = np.load("/media/matthew/Expansion/Widefield_Analysis/Discrimination_Analysis/Noise_Correlation_Changes/Post_Learning_Changes/Pre_Learning_Vis_1.npy")
 intermediate_vis_1_noise_correlations = np.load("/media/matthew/Expansion/Widefield_Analysis/Discrimination_Analysis/Noise_Correlation_Changes/Post_Learning_Changes/Intermediate_Learning_Vis_1.npy")
 post_learning_vis_1_noise_correlations = np.load("/media/matthew/Expansion/Widefield_Analysis/Discrimination_Analysis/Noise_Correlation_Changes/Post_Learning_Changes/Post_Learning_Vis_1.npy")
+"""
 
+
+pre_learning_vis_1_noise_correlations = np.load("/media/matthew/Expansion/Widefield_Analysis/Discrimination_Analysis/Noise_Correlation_Changes/Genotype_Changes/Post_Learning_Sig.npy")
+intermediate_vis_1_noise_correlations = np.load("/media/matthew/Expansion/Widefield_Analysis/Discrimination_Analysis/Noise_Correlation_Changes/Genotype_Changes/Post_Learning_Sig.npy")
+post_learning_vis_1_noise_correlations = np.load("/media/matthew/Expansion/Widefield_Analysis/Discrimination_Analysis/Noise_Correlation_Changes/Genotype_Changes/Post_Learning_Sig.npy")
+
+
+pre_learning_vis_1_noise_correlations = remove_noise_areas(pre_learning_vis_1_noise_correlations)
+intermediate_vis_1_noise_correlations = remove_noise_areas(intermediate_vis_1_noise_correlations)
+post_learning_vis_1_noise_correlations = remove_noise_areas(post_learning_vis_1_noise_correlations)
 
 # Zero Diags
 np.fill_diagonal(pre_learning_vis_1_noise_correlations, 0)

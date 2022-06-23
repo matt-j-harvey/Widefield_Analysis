@@ -9,11 +9,13 @@ import matplotlib.pyplot as plt
 import sys
 from matplotlib import cm
 import h5py
+import tables
 from datetime import datetime
 from scipy.ndimage import gaussian_filter
 
 sys.path.append("/home/matthew/Documents/Github_Code/Widefield_Preprocessing")
 import Widefield_General_Functions
+
 
 
 def load_generous_mask(home_directory):
@@ -122,16 +124,17 @@ def get_trial_tensor(delta_f_matrix, onset_list, start_window, stop_window, perf
 def load_neural_data(base_directory, condition_onsets_list, start_window, stop_window):
 
     # Load Delta F Matrix
-    delta_f_matrix_filepath = os.path.join(base_directory, "Delta_F.hdf5")
-    delta_f_matrix_container = h5py.File(delta_f_matrix_filepath, 'r')
-    delta_f_matrix = delta_f_matrix_container['Data']
+    delta_f_matrix_filepath = os.path.join(base_directory, "Delta_F.h5")
+    delta_f_file = tables.open_file(delta_f_matrix_filepath, mode='r')
+    delta_f_matrix = delta_f_file.root.Data
 
     neural_tensor = []
     for condition in condition_onsets_list:
-        conditon_data = get_trial_tensor(delta_f_matrix, condition, start_window, stop_window, perform_smoothing=True, base_directory=base_directory)
+        conditon_data = get_trial_tensor(delta_f_matrix, condition, start_window, stop_window, perform_smoothing=False, base_directory=base_directory)
         neural_tensor.append(conditon_data)
 
     neural_tensor = np.vstack(neural_tensor)
+    delta_f_file.close()
     return neural_tensor
 
 
@@ -210,9 +213,9 @@ def downsample_ai_traces(base_directory, sanity_check=True):
     lick_trace = ai_data[stimuli_dictionary["Lick"]]
 
     # Load Delta F Matrix
-    delta_f_matrix_filepath = os.path.join(base_directory, "Delta_F.hdf5")
-    delta_f_matrix_container = h5py.File(delta_f_matrix_filepath, 'r')
-    delta_f_matrix = delta_f_matrix_container['Data']
+    delta_f_matrix_filepath = os.path.join(base_directory, "Delta_F.h5")
+    delta_f_file = tables.open_file(delta_f_matrix_filepath, mode='r')
+    delta_f_matrix = delta_f_file.root.Data
 
     # Get Data Structure
     number_of_timepoints = np.shape(delta_f_matrix)[0]
@@ -262,7 +265,6 @@ def create_design_matrix(number_of_conditions, trial_length, condition_trials, r
     condition_regressor_list = []
     for condition in condition_trials:
         condition_regressor = create_stimuli_regressor(condition, trial_length)
-        print("Condition Regressor", np.shape(condition_regressor))
         condition_regressor_list.append(condition_regressor)
 
     # Combine Stimuli Regressors Into Design Matrix
@@ -270,8 +272,6 @@ def create_design_matrix(number_of_conditions, trial_length, condition_trials, r
     number_of_timepoints = trial_length * number_of_trials
     number_of_regressors = number_of_conditions * trial_length
     stimuli_design_matrix = np.zeros((number_of_regressors, number_of_timepoints))
-    print("Stimuli Design MAtrix", np.shape(stimuli_design_matrix))
-
 
     timepoint_start = 0
     for condition_index in range(number_of_conditions):
@@ -289,20 +289,14 @@ def create_design_matrix(number_of_conditions, trial_length, condition_trials, r
 
     stimuli_design_matrix = np.transpose(stimuli_design_matrix)
 
-
     # Create Behavioural Design Matrix
     running_tensor = np.reshape(running_tensor, (np.shape(running_tensor)[0] * np.shape(running_tensor)[1], 1))
-    print("running tensor", np.shape(running_tensor))
-
     lick_tensor = np.reshape(lick_tensor, (np.shape(lick_tensor)[0] * np.shape(lick_tensor)[1], 1))
-    print("lick tensor", np.shape(lick_tensor))
-
     behavioural_design_matrix = np.hstack([running_tensor, lick_tensor])
-    print("Behavioural_Deisgn Matrix", np.shape(behavioural_design_matrix))
 
     # Create Full Design Matrix
     design_matrix = np.hstack([stimuli_design_matrix, behavioural_design_matrix])
-    print("Design Matrix Shape", np.shape(design_matrix))
+
 
     return design_matrix
 
@@ -325,16 +319,11 @@ def create_stimuli_regressor(number_of_trials, trial_length):
 
 def perform_regression(neural_tensor, design_matrix):
 
-    print("neural tensor shape", np.shape(neural_tensor))
-
     # Get Neural Data Shape
     number_of_trials, trial_length, number_of_pixels = np.shape(neural_tensor)
 
     # Reshape Neural Tensor to 2D
     neural_tensor = np.reshape(neural_tensor, (number_of_trials * trial_length, number_of_pixels))
-
-    print("Neural Tensor Shape", np.shape(neural_tensor))
-    print("Design Matrix Shape", np.shape(design_matrix))
 
     # Perform Regression
     model = Ridge()
@@ -352,10 +341,23 @@ def perform_regression(neural_tensor, design_matrix):
     sqaured_error = np.square(error)
     full_sum_squared_error = np.sum(sqaured_error, axis=0)
 
-    return regression_coefficients, r2, full_sum_squared_error
+    return regression_coefficients, r2, full_sum_squared_error, error
 
 
-def get_coefficients_of_partial_determination(neural_tensor, design_matrix, full_sum_squared_error):
+def get_regressor_tensor(design_matrix, error_tensor):
+
+    regressor_error_tensor = []
+    number_of_timepoints = np.shape(design_matrix)[0]
+    for timepoint_index in range(number_of_timepoints):
+        if design_matrix[timepoint_index] == 1:
+            regressor_error_tensor.append(error_tensor[timepoint_index])
+
+    regressor_error_tensor = np.array(regressor_error_tensor)
+    return regressor_error_tensor
+
+
+
+def get_coefficients_of_partial_determination(neural_tensor, design_matrix, full_error, number_of_conditions):
 
     # Get Neural Data Shape
     number_of_trials, trial_length, number_of_pixels = np.shape(neural_tensor)
@@ -363,14 +365,17 @@ def get_coefficients_of_partial_determination(neural_tensor, design_matrix, full
     # Reshape Neural Tensor to 2D
     neural_tensor = np.reshape(neural_tensor, (number_of_trials * trial_length, number_of_pixels))
 
-    number_of_regressors = np.shape(design_matrix)[1]
+    # Get CPD For Each Condition
     partial_determination_matrix = []
-    for regresor_index in range(number_of_regressors):
-        print("Regressor", regresor_index, " of ", number_of_regressors, "at ", datetime.now())
+    for regresor_index in range(number_of_conditions):
+
+        print("Regressor", regresor_index, " of ", number_of_conditions, "at ", datetime.now())
 
         # Get Partial Design Matrix
         partial_design_marix = np.copy(design_matrix)
-        partial_design_marix[:, regresor_index] = 0
+        regressor_start = regresor_index * trial_length
+        regressor_stop =  regressor_start + trial_length
+        partial_design_marix[:, regressor_start:regressor_stop] = 0
 
         # Fit Reduced Model
         model = Ridge()
@@ -378,18 +383,45 @@ def get_coefficients_of_partial_determination(neural_tensor, design_matrix, full
 
         # Get Reduced Sum of Sqaured Error
         prediction = model.predict(partial_design_marix)
-        error = np.subtract(neural_tensor, prediction)
-        sqaured_error = np.square(error)
-        reduced_sum_squared_error = np.sum(sqaured_error, axis=0)
+        partial_error = np.subtract(neural_tensor, prediction)
 
-        # Get Coefficient Of Partial Determination
-        coefficient_of_partial_determination = np.subtract(reduced_sum_squared_error, full_sum_squared_error)
-        coefficient_of_partial_determination = np.divide(coefficient_of_partial_determination, reduced_sum_squared_error)
+        # Get CPD For Each Timepoint Of Stimuli
+        regressor_cpd_list = []
+        for regressor_timepoint in range(regressor_start, regressor_stop):
 
-        partial_determination_matrix.append(coefficient_of_partial_determination)
+            regressor_design_vector = design_matrix[:, regressor_timepoint]
+
+            """
+            regressor_design_vector = np.reshape(regressor_design_vector, (np.shape(regressor_design_vector)[0], 1))
+
+            timepoint_full_error = np.multiply(regressor_design_vector, full_error)
+            timepoint_full_error = np.square(timepoint_full_error)
+            timepoint_full_error = np.sum(timepoint_full_error, axis=0)
+
+            timepoint_partial_error = np.multiply(regressor_design_vector, partial_error)
+            timepoint_partial_error = np.square(timepoint_partial_error)
+            timepoint_partial_error = np.sum(timepoint_partial_error, axis=0)
+            """
+
+            timepoint_full_error = get_regressor_tensor(regressor_design_vector, full_error)
+            timepoint_partial_error = get_regressor_tensor(regressor_design_vector, partial_error)
+
+            timepoint_full_error = np.square(timepoint_full_error)
+            timepoint_full_error = np.sum(timepoint_full_error, axis=0)
+
+            timepoint_partial_error = np.square(timepoint_partial_error)
+            timepoint_partial_error = np.sum(timepoint_partial_error, axis=0)
+
+            coefficient_of_partial_determination = np.subtract(timepoint_partial_error, timepoint_full_error)
+            coefficient_of_partial_determination = np.divide(coefficient_of_partial_determination, timepoint_partial_error)
+
+            regressor_cpd_list.append(coefficient_of_partial_determination)
+
+        partial_determination_matrix.append(regressor_cpd_list)
 
     partial_determination_matrix = np.array(partial_determination_matrix)
     partial_determination_matrix = np.transpose(partial_determination_matrix)
+
     return partial_determination_matrix
 
 
@@ -564,7 +596,6 @@ def perform_regression_analysis(session_list, start_window, stop_window, conditi
         for condition in condition_onsets_list:
             condition_trials = len(condition)
             condition_trial_numbers.append(condition_trials)
-        print("Condition Trials: ", condition_trial_numbers)
 
         # Load Behavioural Data
         downsampled_running_trace, downsampled_lick_trace = downsample_ai_traces(base_directory)
@@ -574,21 +605,20 @@ def perform_regression_analysis(session_list, start_window, stop_window, conditi
         print("Loading Neural Data")
         neural_tensor = load_neural_data(base_directory, condition_onsets_list, start_window, stop_window)
 
-
         # Create Design Matrix
         design_matrix = create_design_matrix(number_of_conditions, trial_length, condition_trial_numbers, running_tensor, lick_tensor, neural_tensor)
 
         # Perform Regression
         print("Performing Regression")
-        regression_coefficients, r2, full_sum_squared_error = perform_regression(neural_tensor, design_matrix)
+        regression_coefficients, r2, full_sum_squared_error, full_error = perform_regression(neural_tensor, design_matrix)
 
         # Get Coefficients Of Partial Determination
         print("Getting Coefficients of Partial Determination")
-        #partial_determination_matrix = get_coefficients_of_partial_determination(neural_tensor, design_matrix, full_sum_squared_error)
+        partial_determination_matrix = get_coefficients_of_partial_determination(neural_tensor, design_matrix, full_error, number_of_conditions)
 
         # Seperate Cofficeints Into Each Condition
         condition_coefficients_list = seperate_regression_coefficents_into_conditions(regression_coefficients, trial_length, number_of_conditions)
-        #condition_cpd_list = seperate_regression_coefficents_into_conditions(partial_determination_matrix, trial_length, number_of_conditions)
+        partial_determination_matrix = np.moveaxis(partial_determination_matrix, (0, 1, 2), (2, 1, 0))
 
         # Save Regression Results
         regression_dictionary = {
@@ -596,7 +626,7 @@ def perform_regression_analysis(session_list, start_window, stop_window, conditi
             "R2": r2,
             "Full_Sum_Sqaure_Error": full_sum_squared_error,
             "Regression_Coefficients": condition_coefficients_list,
-            #"Coefficients_of_Partial_Determination":condition_cpd_list,
+            "Coefficients_of_Partial_Determination":partial_determination_matrix,
             "Start_Window": start_window,
             "Stop_Window": stop_window,
         }
@@ -605,100 +635,55 @@ def perform_regression_analysis(session_list, start_window, stop_window, conditi
 
 
 
-
 session_list = [
 
-    #"/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_04_Discrimination_Imaging",
-    #"/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_06_Discrimination_Imaging",
-    #"/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_08_Discrimination_Imaging",
-    #"/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_10_Discrimination_Imaging",
-    #"/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_12_Discrimination_Imaging",
-    #"/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_14_Discrimination_Imaging",
-    #"/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_22_Discrimination_Imaging",
+    # 78.1A - 6
+    r"/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NRXN78.1A/2020_11_15_Discrimination_Imaging",
+    r"/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NRXN78.1A/2020_11_16_Discrimination_Imaging",
+    r"/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NRXN78.1A/2020_11_17_Discrimination_Imaging",
+    r"/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NRXN78.1A/2020_11_19_Discrimination_Imaging",
+    r"/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NRXN78.1A/2020_11_21_Discrimination_Imaging",
+    r"/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NRXN78.1A/2020_11_24_Discrimination_Imaging",
 
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK4.1A/2021_02_02_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK4.1A/2021_02_04_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK4.1A/2021_02_06_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK4.1A/2021_02_08_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK4.1A/2021_02_10_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK4.1A/2021_02_12_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK4.1A/2021_02_14_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK4.1A/2021_02_16_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK4.1A/2021_02_18_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK4.1A/2021_02_23_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK4.1A/2021_02_25_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK4.1A/2021_02_27_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK4.1A/2021_03_01_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK4.1A/2021_03_03_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK4.1A/2021_03_05_Discrimination_Imaging",
+    # 78.1D - 8
+    r"/media/matthew/Expansion/Widefield_Analysis/NRXN78.1D/2020_11_14_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Widefield_Analysis/NRXN78.1D/2020_11_15_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Widefield_Analysis/NRXN78.1D/2020_11_16_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Widefield_Analysis/NRXN78.1D/2020_11_17_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Widefield_Analysis/NRXN78.1D/2020_11_19_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Widefield_Analysis/NRXN78.1D/2020_11_21_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Widefield_Analysis/NRXN78.1D/2020_11_23_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Widefield_Analysis/NRXN78.1D/2020_11_25_Discrimination_Imaging",
 
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK20.1B/2021_09_28_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK20.1B/2021_09_30_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK20.1B/2021_10_02_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK20.1B/2021_10_04_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK20.1B/2021_10_06_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK20.1B/2021_10_09_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK20.1B/2021_10_11_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK20.1B/2021_10_13_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK20.1B/2021_10_15_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK20.1B/2021_10_17_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK20.1B/2021_10_19_Discrimination_Imaging",
-
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NRXN78.1A/2020_11_15_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NRXN78.1A/2020_11_16_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NRXN78.1A/2020_11_17_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NRXN78.1A/2020_11_19_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NRXN78.1A/2020_11_21_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NRXN78.1A/2020_11_24_Discrimination_Imaging",
-]
-
-session_list = [
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK22.1A/2021_09_25_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK22.1A/2021_09_29_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK22.1A/2021_10_01_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK22.1A/2021_10_03_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK22.1A/2021_10_05_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK22.1A/2021_10_07_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK22.1A/2021_10_08_Discrimination_Imaging",
-
-]
-
-session_list = [
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK16.1B/2021_04_30_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK16.1B/2021_05_02_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK16.1B/2021_05_04_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK16.1B/2021_05_06_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK16.1B/2021_05_08_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK16.1B/2021_05_10_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK16.1B/2021_05_12_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK16.1B/2021_05_14_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK16.1B/2021_05_16_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK16.1B/2021_05_18_Discrimination_Imaging",
-    r"/media/matthew/Seagate Expansion Drive1/Processed_Widefield_Data/NXAK16.1B/2021_05_20_Discrimination_Imaging",
-]
-
-
-session_list = [
-
+    # 4.1B - 7
     "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_04_Discrimination_Imaging",
     "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_06_Discrimination_Imaging",
     "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_08_Discrimination_Imaging",
     "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_10_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_12_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_14_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_22_Discrimination_Imaging",
 
-]
+    # NXAK16.1B - 16
+    "/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK16.1B/2021_04_30_Discrimination_Imaging",
+    "/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK16.1B/2021_05_02_Discrimination_Imaging",
+    "/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK16.1B/2021_05_04_Discrimination_Imaging",
+    "/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK16.1B/2021_05_06_Discrimination_Imaging",
+    "/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK16.1B/2021_05_08_Discrimination_Imaging",
+    "/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK16.1B/2021_05_10_Discrimination_Imaging",
+    "/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK16.1B/2021_05_12_Discrimination_Imaging",
+    "/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK16.1B/2021_05_14_Discrimination_Imaging",
+    "/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK16.1B/2021_05_16_Discrimination_Imaging",
+    "/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK16.1B/2021_05_18_Discrimination_Imaging",
+    "/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK16.1B/2021_05_20_Discrimination_Imaging",
+    "/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK16.1B/2021_05_22_Discrimination_Imaging",
+    "/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK16.1B/2021_05_24_Discrimination_Imaging",
+    "/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK16.1B/2021_05_26_Discrimination_Imaging",
+    "/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK16.1B/2021_06_04_Discrimination_Imaging",
+    "/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK16.1B/2021_06_15_Discrimination_Imaging",
+    ]
 
-session_list = [
-                #r"/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/Beverly/2022_05_27_mirror_imaging",
-                r"/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/Beverly/2022_05_18_Mirror_Imaging"
-                ]
+start_window = -28
+stop_window = 0
 
-start_window = -20
-stop_window = 90
+condition_onset_files = ["lick_onsets.npy"]
 
-condition_onset_files = ["Visual_Expected_Present_onsets.npy", "Visual_Expected_Absent_onsets.npy", "Visual_Not_Expected_Absent_onsets.npy"]
-
-model_name = "Expected_Visual_Onset"
+model_name = "Lick_Onsets"
 perform_regression_analysis(session_list, start_window, stop_window, condition_onset_files, model_name)

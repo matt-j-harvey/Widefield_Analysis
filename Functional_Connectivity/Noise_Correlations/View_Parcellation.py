@@ -6,7 +6,8 @@ import os
 
 # Load Clusters
 clusters = np.load(os.path.join("/media/matthew/Expansion/Widefield_Analysis/Consensus_Clustering/Final_Consensus_Clusters.npy"), allow_pickle=True)[()]
-
+plt.imshow(clusters)
+plt.show()
 # View Edge
 edges_array = np.zeros(np.shape(clusters))
 unique_clusters = list(np.unique(clusters))
