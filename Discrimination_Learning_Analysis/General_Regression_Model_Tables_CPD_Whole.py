@@ -556,7 +556,7 @@ def seperate_regression_coefficents_into_conditions(coefficients, trial_length, 
 
 
 
-def perform_regression_analysis(session_list, start_window, stop_window, condition_onset_files, model_name, min_trials=2, max_trials=50):
+def perform_regression_analysis(session_list, start_window, stop_window, condition_onset_files, model_name, min_trials=2, max_trials=150):
 
     number_of_conditions = len(condition_onset_files)
     trial_length = stop_window - start_window
@@ -624,11 +624,11 @@ def perform_regression_analysis(session_list, start_window, stop_window, conditi
 
             # Get Coefficients Of Partial Determination
             print("Getting Coefficients of Partial Determination")
-            #partial_determination_matrix = get_coefficients_of_partial_determination(neural_tensor, design_matrix, full_error, number_of_conditions)
+            partial_determination_matrix = get_coefficients_of_partial_determination(neural_tensor, design_matrix, full_error, number_of_conditions)
 
             # Seperate Cofficeints Into Each Condition
             condition_coefficients_list = seperate_regression_coefficents_into_conditions(regression_coefficients, trial_length, number_of_conditions)
-            #partial_determination_matrix = np.moveaxis(partial_determination_matrix, (0, 1, 2), (2, 1, 0))
+            partial_determination_matrix = np.moveaxis(partial_determination_matrix, (0, 1, 2), (2, 1, 0))
 
             # Save Regression Results
             regression_dictionary = {
@@ -636,7 +636,7 @@ def perform_regression_analysis(session_list, start_window, stop_window, conditi
                 "R2": r2,
                 "Full_Sum_Sqaure_Error": full_sum_squared_error,
                 "Regression_Coefficients": condition_coefficients_list,
-                #"Coefficients_of_Partial_Determination":partial_determination_matrix,
+                "Coefficients_of_Partial_Determination":partial_determination_matrix,
                 "Start_Window": start_window,
                 "Stop_Window": stop_window,
             }
@@ -792,7 +792,7 @@ stop_window = 28
 condition_onset_files = ["fast_reaction_stimuli_onsets.npy", "slow_reaction_stimuli_onsets.npy"]
 model_name = "Fast_v_Slow_Reaction_Lick_Aligned"
 perform_regression_analysis(session_list, start_window, stop_window, condition_onset_files, model_name, min_trials=5)
-
+"""
 
 
 start_window = -42
@@ -801,47 +801,3 @@ stop_window = 84
 condition_onset_files = ["Stimuli_Onsets_Matched_Reaction_Times_1100_1200.npy"]
 model_name = "Vis_1_Matched_Reaction_Times"
 perform_regression_analysis(session_list, start_window, stop_window, condition_onset_files, model_name, min_trials=5)
-"""
-
-
-session_list = [
-
-    # Controls
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_04_08_Transition_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_04_02_Transition_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_04_10_Transition_Imaging",
-
-    r"/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_03_23_Transition_Imaging",
-    r"/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_03_31_Transition_Imaging",
-    r"/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_04_02_Transition_Imaging",
-
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK22.1A/2021_10_29_Transition_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK22.1A/2021_11_03_Transition_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK22.1A/2021_11_05_Transition_Imaging",
-
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK14.1A/2021_06_13_Transition_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK14.1A/2021_06_15_Transition_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK14.1A/2021_06_17_Transition_Imaging",
-
-    # Mutants
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK16.1B/2021_07_08_Transition_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1A/2021_04_12_Transition_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK20.1B/2021_11_22_Transition_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK24.1C/2021_11_10_Transition_Imaging",
-
-]
-
-session_list = [
-    r"/media/matthew/External_Harddrive_1/Processed_Widefield_Data/Beverly/2022_05_16_Mirror_Imaging",
-    r"/media/matthew/External_Harddrive_1/Processed_Widefield_Data/Beverly/2022_05_18_Mirror_Imaging",
-    r"/media/matthew/External_Harddrive_1/Processed_Widefield_Data/Beverly/2022_05_23_mirror_imaging",
-    r"/media/matthew/External_Harddrive_1/Processed_Widefield_Data/Beverly/2022_05_27_mirror_imaging",
-]
-
-
-
-start_window = -10
-stop_window = 100
-onset_files = ["Visual_Expected_Present_onsets.npy", "Visual_Expected_Absent_onsets.npy", "Visual_Not_Expected_Absent_onsets.npy"]
-model_name = "Absence_Of_Expected_Visual_Stimuli"
-perform_regression_analysis(session_list, start_window, stop_window, onset_files, model_name, min_trials=1)

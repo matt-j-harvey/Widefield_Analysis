@@ -47,7 +47,6 @@ def get_widow_size(frame_index_list, window, frame_times):
 
 
 
-
 def get_trial_data(ai_data, stimuli_dictionary, selected_trace, onsets_time, start_window_time, stop_window_time):
 
     selected_trace_tensor = []
@@ -56,6 +55,7 @@ def get_trial_data(ai_data, stimuli_dictionary, selected_trace, onsets_time, sta
     # Get Ai Data Trace
     selected_trace = ai_data[stimuli_dictionary[selected_trace]]
 
+    print("Behaviour onsets", onsets_time)
     for trial_index in range(number_of_trials):
 
         trial_onset = onsets_time[trial_index]
@@ -71,6 +71,26 @@ def get_trial_data(ai_data, stimuli_dictionary, selected_trace, onsets_time, sta
 
 
 
+def create_behaviour_tensor_downsampled_ai(base_directory, onsets_file, start_window, stop_window, selected_traces):
+
+    # Load Downsampled AI
+    ai_data = np.load(os.path.join(base_directory, "Downsampled_AI_Matrix_Framewise.npy"), allow_pickle=True)
+    print("Downsampled AI Data", np.shape(ai_data))
+
+    # Create Stimuli Dictionary
+    stimuli_dictionary = Widefield_General_Functions.create_stimuli_dictionary()
+
+    # Load Onsets
+    print("Onsets File", onsets_file)
+    stimuli_onsets = np.load(os.path.join(base_directory, "Stimuli_Onsets", onsets_file), allow_pickle=True)
+
+    # Get Create Behaviour Tensor Dict
+    behaviour_tensor_dict = {}
+    for trace_name in selected_traces:
+        selected_trace_tensor = get_trial_data(ai_data, stimuli_dictionary, trace_name, stimuli_onsets, start_window, stop_window)
+        behaviour_tensor_dict[trace_name] = selected_trace_tensor
+
+    return behaviour_tensor_dict
 
 
 def create_behaviour_tensor(base_directory, onsets_file, start_window, stop_window, selected_traces, timestep=36):
@@ -84,6 +104,7 @@ def create_behaviour_tensor(base_directory, onsets_file, start_window, stop_wind
     stimuli_dictionary = Widefield_General_Functions.create_stimuli_dictionary()
 
     # Load Stimuli Onsets
+    print("Onsets File", onsets_file)
     stimuli_onsets = np.load(os.path.join(base_directory, "Stimuli_Onsets", onsets_file))
 
     # Load Frame Times

@@ -196,6 +196,7 @@ def normalise_activity_matrix(activity_matrix):
     return activity_matrix
 
 
+
 def perform_decoding(delta_f_matrix, condition_1_onsets, condition_2_onsets, start_window, stop_window):
 
     # Balanace Trial Numbers
@@ -239,13 +240,16 @@ def run_decoding_analysis(session_list, condition_1, condition_2, start_window, 
 
     # Predict D Prime Of session
     decoding_scores_list = []
+    condition_1_average_lick_traces_list = []
+    condition_2_average_lick_traces_list = []
     colourmap = cm.get_cmap('plasma')
 
     decoding_figure = plt.figure()
     number_of_sessions = len(session_list)
-    grid_spec = GridSpec(nrows=number_of_sessions, ncols=3)
+    grid_spec = GridSpec(nrows=2, ncols=1)
 
-    decoding_performance_axis = decoding_figure.add_subplot(grid_spec[:, 0:2])
+    decoding_performance_axis = decoding_figure.add_subplot(grid_spec[0, 0])
+    lick_trace_axis = decoding_figure.add_subplot(grid_spec[1, 0])
 
     # Iterate Through Each Session
     x_values = list(range(start_window, stop_window))
@@ -267,15 +271,27 @@ def run_decoding_analysis(session_list, condition_1, condition_2, start_window, 
         vis_2_onsets = np.load(os.path.join(base_directory, "Stimuli_Onsets", condition_2))
 
         # View Downsampled AI
-        #view_ai_average_traces(base_directory, vis_1_onsets, vis_2_onsets, start_window, stop_window)
+        downsampled_ai = np.load(os.path.join(base_directory, "Downsampled_AI_Matrix_Framewise.npy"))
+        stimuli_dictionary = create_stimuli_dictionary()
+        lick_trace = downsampled_ai[stimuli_dictionary["Lick"]]
+        condition_1_lick_tensor = get_trial_tensor(lick_trace, vis_1_onsets, start_window, stop_window)
+        condition_2_lick_tensor = get_trial_tensor(lick_trace, vis_2_onsets, start_window, stop_window)
+        condition_1_mean_lick_trace = np.mean(condition_1_lick_tensor, axis=0)
+        condition_2_mean_lick_trace = np.mean(condition_2_lick_tensor, axis=0)
+
+        condition_1_average_lick_traces_list.append(condition_1_mean_lick_trace)
+        condition_2_average_lick_traces_list.append(condition_2_mean_lick_trace)
 
         # Decode Visual Stimuli
         decoding_scores, decoding_sds, mean_weights = perform_decoding(activity_matrix, vis_1_onsets, vis_2_onsets, start_window, stop_window)
         decoding_scores_list.append(decoding_scores)
 
+        # Decode Using Lick
+
         # Plot These
         plot_colour = colourmap(float(session_index)/number_of_sessions)
         decoding_performance_axis.plot(x_values, decoding_scores, c=plot_colour)
+        lick_trace_axis.plot(x_values, condition_2_mean_lick_trace, c=plot_colour)
 
         # Shade STDs
         """
@@ -285,9 +301,9 @@ def run_decoding_analysis(session_list, condition_1, condition_2, start_window, 
         plt.fill_between(x=x_values, y1=lower_bound, y2=upperbound, color=plot_colour, alpha=0.5)
         """
 
-        mean_weights_magnitude = np.max(np.abs(mean_weights))
-        mean_weights_axis = decoding_figure.add_subplot(grid_spec[session_index, 2])
-        mean_weights_axis.imshow(np.transpose(mean_weights), cmap='bwr',vmin=-mean_weights_magnitude, vmax=mean_weights_magnitude)
+        #mean_weights_magnitude = np.max(np.abs(mean_weights))
+        #mean_weights_axis = decoding_figure.add_subplot(grid_spec[session_index, 2])
+        #mean_weights_axis.imshow(np.transpose(mean_weights), cmap='bwr',vmin=-mean_weights_magnitude, vmax=mean_weights_magnitude)
 
 
     decoding_performance_axis.axvline(0, c='k', linestyle='--')
@@ -296,38 +312,65 @@ def run_decoding_analysis(session_list, condition_1, condition_2, start_window, 
 
 
 
-session_list = [
+control_session_list = [
 
-    #"/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_14_Discrimination_Imaging",
+    # Controls 46 sessions
+
+    # 78.1A - 6
+    r"/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NRXN78.1A/2020_11_21_Discrimination_Imaging",
+    r"/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NRXN78.1A/2020_11_24_Discrimination_Imaging",
+
+    # 78.1D - 8
+    r"/media/matthew/Expansion/Widefield_Analysis/NRXN78.1D/2020_11_23_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Widefield_Analysis/NRXN78.1D/2020_11_25_Discrimination_Imaging",
+
+    # 4.1B - 7
+    "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_14_Discrimination_Imaging",
     "/media/matthew/Expansion/Widefield_Analysis/NXAK4.1B/2021_02_22_Discrimination_Imaging",
 
-    #"/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_22_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_24_Discrimination_Imaging",
+    # 22.1A - 7
+    r"/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK22.1A/2021_10_07_Discrimination_Imaging",
+    r"/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK22.1A/2021_10_08_Discrimination_Imaging",
 
-    #"/media/matthew/Expansion/Widefield_Analysis/NXAK14.1A/2021_05_07_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NXAK14.1A/2021_05_09_Discrimination_Imaging",
+    # 14.1A - 6
+    r"/media/matthew/Expansion/Widefield_Analysis/NXAK14.1A/2021_05_07_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Widefield_Analysis/NXAK14.1A/2021_05_09_Discrimination_Imaging",
 
-    #"/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NRXN78.1A/2020_11_21_Discrimination_Imaging",
-    "/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NRXN78.1A/2020_11_24_Discrimination_Imaging",
-
-    #"/media/matthew/Expansion/Widefield_Analysis/NRXN78.1D/2020_11_25_Discrimination_Imaging",
-    "/media/matthew/Expansion/Widefield_Analysis/NRXN78.1D/2020_11_23_Discrimination_Imaging",
-
-    #"/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK22.1A/2021_10_07_Discrimination_Imaging"
-    #"/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK22.1A/2021_10_08_Discrimination_Imaging",
-
+    # 7.1B - 12
+    r"/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_22_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Widefield_Analysis/NXAK7.1B/2021_02_24_Discrimination_Imaging",
 ]
 
+mutant_session_list = [
 
-session_list = [
+    # Mutants
+
+    # 4.1A - 15
+    r"/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK4.1A/2021_03_03_Discrimination_Imaging",
+    r"/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK4.1A/2021_03_05_Discrimination_Imaging",
+
+    # 20.1B - 11
     r"/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK20.1B/2021_10_17_Discrimination_Imaging",
     r"/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK20.1B/2021_10_19_Discrimination_Imaging",
 
-    "/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK4.1A/2021_03_05_Discrimination_Imaging",
-    "/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK4.1A/2021_03_03_Discrimination_Imaging",
+    # 24.1C - 10
+    r"/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK24.1C/2021_10_06_Discrimination_Imaging",
+    r"/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK24.1C/2021_10_08_Discrimination_Imaging",
 
+    # NXAK16.1B - 16
+    r"/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK16.1B/2021_06_04_Discrimination_Imaging",
+    r"/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK16.1B/2021_06_15_Discrimination_Imaging",
+
+    # 10.1A - 8
+    r"/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK10.1A/2021_05_12_Discrimination_Imaging",
+    r"/media/matthew/Seagate Expansion Drive2/Processed_Widefield_Data/NXAK10.1A/2021_05_14_Discrimination_Imaging",
+
+
+    # 71.2A - 16
 
 ]
+
+
 
 # Decoding Parameters
 start_window = -50
@@ -336,4 +379,5 @@ condition_1 = "visual_2_correct_onsets.npy"
 condition_2 = "visual_2_incorrect_onsets.npy"
 
 # Run Decoding
-mouse_score_list = run_decoding_analysis(session_list, condition_1, condition_2, start_window, stop_window)
+mouse_score_list = run_decoding_analysis(control_session_list, condition_1, condition_2, start_window, stop_window)
+mouse_score_list = run_decoding_analysis(mutant_session_list, condition_1, condition_2, start_window, stop_window)

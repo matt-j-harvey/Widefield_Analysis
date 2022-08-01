@@ -36,7 +36,7 @@ class connectivity_matrix_explorer(QWidget):
         self.display_view.getView().scene().sigMouseMoved.connect(lambda pos: self.getPixel(pos, self.display_view))
         self.display_view.setImage(self.pixel_assignments)
         self.display_view.setLevels(0, 3)
-        colourmap = pyqtgraph.colormap.get('CET-l3')
+        colourmap = pyqtgraph.colormap.get('CET-L3')
         self.display_view.setColorMap(colourmap)
 
         # Create Layout
@@ -89,10 +89,10 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
 
     # Load Connectivity Matrix
-    connectivity_matrix = np.load(r"C:\Users\matth\Documents\PhD_Documents\GC_Matrix_Testing\GC_matrix.npy")
+    connectivity_matrix = np.load(r"/media/matthew/Expansion/Widefield_Analysis/Switching_Analysis/Decoding/Decoder_weights.npy")
 
     # Load Consensus Clusters
-    conensus_clusters = np.load(r"C:\Users\matth\Documents\PhD_Documents\CLustered_Delta_F\Final_Consensus_Clusters.npy")
+    conensus_clusters = np.load(r"/media/matthew/Expansion/Widefield_Analysis/Consensus_Clustering/Final_Consensus_Clusters.npy")
 
     plt.imshow(conensus_clusters)
     plt.show()

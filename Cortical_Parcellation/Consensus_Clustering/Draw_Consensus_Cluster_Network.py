@@ -107,7 +107,7 @@ def threshold_matrix(matrix, percentile=50):
 
 def remove_noise_areas(connectivity_matirx):
 
-    noise_areas = [26, 28]
+    noise_areas = [26, 28, 27, 34, 37]
 
     for region in noise_areas:
         connectivity_matirx[region-1:] = 0
@@ -136,6 +136,11 @@ post_learning_vis_1_noise_correlations = remove_noise_areas(post_learning_vis_1_
 np.fill_diagonal(pre_learning_vis_1_noise_correlations, 0)
 np.fill_diagonal(intermediate_vis_1_noise_correlations, 0)
 np.fill_diagonal(post_learning_vis_1_noise_correlations, 0)
+
+# Load Pixel Assignments
+pixel_assignments = np.load(r"/media/matthew/Expansion/Widefield_Analysis/Consensus_Clustering/Final_Consensus_Clusters.npy")
+plt.imshow(pixel_assignments)
+plt.show()
 
 # Load Cluster Centroids
 cluster_centroids = np.load("/media/matthew/Expansion/Widefield_Analysis/Consensus_Clustering/cluster_centroids.npy")

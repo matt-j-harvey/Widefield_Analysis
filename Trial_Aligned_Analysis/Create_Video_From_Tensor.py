@@ -17,6 +17,7 @@ from skimage.transform import resize
 from scipy.interpolate import interp1d
 import sys
 import matplotlib.gridspec as gridspec
+from matplotlib.colors import Normalize
 
 sys.path.append("/home/matthew/Documents/Github_Code/Widefield_Preprocessing")
 
@@ -241,6 +242,7 @@ def gaussian_smooth_image(data, image_height, image_width):
 
 
 
+
 def create_single_mouse_comparison_video_3_conditions(base_directory, tensor_filenames, trial_start, trial_stop, plot_titles, save_directory):
 
     # Get Region Boundaries
@@ -299,17 +301,31 @@ def create_single_mouse_comparison_video_3_conditions(base_directory, tensor_fil
         condition_3_activity_image = gaussian_smooth_image(condition_3_activity_image, image_height, image_width)
         difference_image = gaussian_smooth_image(difference_image, image_height, image_width)
 
-        # Scale Difference Images To Between 0 and 1
-        difference_image = scale_difference_image(difference_image)
+
+        # Convert To Floats
+        condition_1_activity_image = np.ndarray.astype(condition_1_activity_image, float)
+        condition_2_activity_image = np.ndarray.astype(condition_2_activity_image, float)
+        condition_3_activity_image = np.ndarray.astype(condition_3_activity_image, float)
+        difference_image = np.ndarray.astype(difference_image, float)
+
+        # Normalise Images
+        normalisation_factor = 65535
+        condition_1_activity_image = np.divide(condition_1_activity_image, normalisation_factor)
+        condition_2_activity_image = np.divide(condition_2_activity_image, normalisation_factor)
+        condition_3_activity_image = np.divide(condition_3_activity_image, normalisation_factor)
+        difference_image = np.divide(difference_image, normalisation_factor)
 
         # Convert These To Colours
-        delta_f_colourmap = cm.get_cmap('jet')
-        difference_colourmap = cm.get_cmap('bwr')
-
-        condition_1_activity_image = delta_f_colourmap(condition_1_activity_image)
-        condition_2_activity_image = delta_f_colourmap(condition_2_activity_image)
-        condition_3_activity_image = delta_f_colourmap(condition_3_activity_image)
-        difference_image = difference_colourmap(difference_image)
+        delta_f_colourmap_data = cm.get_cmap('jet')
+        difference_colourmap_data = cm.get_cmap('bwr')
+        delta_f_norm = Normalize(vmin=0, vmax=0.8)
+        difference_norm = Normalize(vmin=-0.5, vmax=0.5)
+        delta_f_colourmap = cm.ScalarMappable(cmap=delta_f_colourmap_data, norm=delta_f_norm)
+        difference_colourmap = cm.ScalarMappable(cmap=difference_colourmap_data, norm=difference_norm)
+        condition_1_activity_image = delta_f_colourmap.to_rgba(condition_1_activity_image)
+        condition_2_activity_image = delta_f_colourmap.to_rgba(condition_2_activity_image)
+        condition_3_activity_image = delta_f_colourmap.to_rgba(condition_3_activity_image)
+        difference_image = difference_colourmap.to_rgba(difference_image)
 
         # Flatten Arrays
         condition_1_activity_image = np.ndarray.reshape(condition_1_activity_image, (image_height * image_width, 4))
@@ -528,6 +544,194 @@ def remove_axis_border(axis):
     axis.spines['right'].set_visible(False)
     #axis.spines['bottom'].set_visible(False)
     axis.spines['left'].set_visible(False)
+
+
+
+
+def jointly_scale_behaviour_traces(behaviour_dict_list, selected_trace_list, number_of_traces, number_of_conditions):
+
+    # Each Ai Trace then Each Condition
+    jointly_scaled_trace_list = []
+
+    # Jointly Normalise Traces
+    for trace_index in range(number_of_traces):
+
+        # Get Selected Trace Name
+        selected_trace = selected_trace_list[trace_index]
+
+        # Get List of Unscaled Traces
+        unscaled_trace_list = []
+        for condition_index in range(number_of_conditions):
+
+            # Get Trace From Dict
+            condition_trace_data = behaviour_dict_list[condition_index][selected_trace]
+            condition_trace_data = np.mean(condition_trace_data, axis=0)
+            print("Condition Trace Data", np.shape(condition_trace_data))
+            unscaled_trace_list.append(condition_trace_data)
+
+        # Jointly Scale These
+        scaled_trace_list = jointly_scale_trace(unscaled_trace_list)
+        jointly_scaled_trace_list.append(scaled_trace_list)
+
+    jointly_scaled_trace_list = np.array(jointly_scaled_trace_list)
+    print("Jointly scaled Traces", np.shape(jointly_scaled_trace_list))
+
+    return jointly_scaled_trace_list
+
+
+def create_generic_comparison_video_n_conditions_behaviour(base_directory, mean_activity_tensors, trial_start, trial_stop, plot_titles, save_directory, behaviour_dict_list, selected_behaviour_traces, timestep=36):
+
+    # Check Save Directory Exists
+    print("Save Directory", save_directory)
+    full_save_path = os.path.join(base_directory, save_directory)
+    if not os.path.exists(full_save_path):
+        os.mkdir(full_save_path)
+
+    # Get Region Boundaries
+    #masked_atlas, atlas_indicies = add_region_boundaries(base_directory)
+
+    # Load Number Of Condition
+    number_of_conditions = len(mean_activity_tensors)
+    print("Number of Conditions: ", number_of_conditions)
+
+    # Construct Images
+    reconstructed_activity_tensors = []
+    for condition_index in range(number_of_conditions):
+        condition_activity_tensor = reconstruct_images_from_activity(mean_activity_tensors[condition_index], base_directory)
+        reconstructed_activity_tensors.append(condition_activity_tensor)
+    reconstructed_activity_tensors = np.array(reconstructed_activity_tensors)
+
+
+    # Create Figure
+    number_of_timepoints = np.shape(mean_activity_tensors[0])[0]
+    number_of_columns = 4
+    number_of_rows = number_of_conditions
+    figure_1 = plt.figure(constrained_layout=True, figsize=(80, 60))
+    grid_spec_1 = gridspec.GridSpec(ncols=number_of_columns, nrows=number_of_rows, figure=figure_1)
+
+    # Plot For Each Timepoint
+    timepoint_count = 0
+    timepoint_list = list(range(trial_start, trial_stop))
+    timepoint_list = np.multiply(timepoint_list, timestep)
+
+    # Create Colourmaps
+    delta_f_colourmap = cm.ScalarMappable(cmap=cm.get_cmap('jet'), norm=Normalize(vmin=0, vmax=65535))
+    difference_colourmap = cm.ScalarMappable(cmap=cm.get_cmap('bwr'), norm=Normalize(vmin=-30000, vmax=30000))
+
+    # Get X Values
+    x_values = list(range(trial_start * timestep, trial_stop * timestep, timestep))
+
+    # Get Number of Behaviour Traces
+    selected_trace_list = list(behaviour_dict_list[0].keys())
+    number_of_traces = len(selected_trace_list)
+
+    # Select Behaviour Trace Colours
+    behaviour_trace_colour_list = []
+    behaviour_colour_map = cm.get_cmap('jet')
+    for trace_index in range(number_of_traces):
+        trace_index = float(trace_index) / number_of_traces
+        trace_colour = behaviour_colour_map(trace_index)
+        behaviour_trace_colour_list.append(trace_colour)
+
+    # Set Behaviour Trace Offset
+    trace_offset = 1.5
+
+    # Get Jointly Scaled Beahviour Traces
+    scaled_behaviour_trace_list = jointly_scale_behaviour_traces(behaviour_dict_list, selected_behaviour_traces, number_of_traces, number_of_conditions)
+
+    # Plot Each Timepoint
+    for timepoint in range(number_of_timepoints):
+
+        print(timepoint)
+        time_text = str(timepoint_list[timepoint]) + "ms"
+        x_pos = 30
+        y_pos = 75
+
+        # Add Axes
+        for condition_index in range(number_of_conditions):
+            condition_activity_axis = figure_1.add_subplot(grid_spec_1[0, condition_index])
+            condition_behaviour_axis = figure_1.add_subplot(grid_spec_1[1, condition_index])
+
+            # Select Images
+            condition_activity_image = reconstructed_activity_tensors[condition_index, timepoint]
+
+            # Gaussian Smoothing
+            condition_activity_image = ndimage.gaussian_filter(condition_activity_image, sigma=1)
+
+            # Add Colourmap
+            condition_activity_image = delta_f_colourmap.to_rgba(condition_activity_image)
+
+
+            # Add Outlines
+            """
+            condition_activity_image = np.ndarray.reshape(condition_activity_image, (image_height * image_width, 4))
+            condition_activity_image[atlas_indicies] = (0, 0, 0, 1)
+            condition_activity_image = np.ndarray.reshape(condition_activity_image, (image_height, image_width, 4))
+            """
+
+            # Plot Image
+            condition_activity_axis.imshow(condition_activity_image)
+
+            # Remove Axis
+            condition_activity_axis.axis('off')
+
+            # Set Title
+            condition_activity_axis.set_title(plot_titles[condition_index] + "_Raw_Activity")
+
+            # Add Time Text
+            condition_activity_axis.text(x_pos, y_pos, time_text, color='White')
+
+            for trace_index in range(number_of_traces):
+
+                # Load Scaled Trace
+                scaled_trace = scaled_behaviour_trace_list[trace_index, condition_index]
+
+                # Add Offset
+                offset = trace_index * trace_offset
+                scaled_trace = np.add(scaled_trace, offset)
+
+                # Get Trace Colour
+                trace_colour = behaviour_trace_colour_list[trace_index]
+
+                # Plot Traces
+                condition_behaviour_axis.plot(x_values, scaled_trace, c=trace_colour)
+
+            # Remove Behaviour Axis Y Values
+            condition_behaviour_axis.get_yaxis().set_visible(False)
+
+            # Remove Behaviour Axis Boxes
+            remove_axis_border(condition_behaviour_axis)
+
+            # PLace Vline At Trial Offsets
+            condition_behaviour_axis.axvline(x=0, ymin=0, ymax=1, c='k', linestyle=(0, (5,5)))
+
+            current_time = 0 + (trial_start * 36) + (timepoint * 36)
+            condition_behaviour_axis.axvline(x=current_time, ymin=0, ymax=1, c='b')
+
+            # Plot Beahviour Lengend
+            legend_axis = figure_1.add_subplot(grid_spec_1[1, 3])
+            patch_list = []
+
+            for trace_index in range(number_of_traces):
+                trace_name = selected_trace_list[trace_index]
+                trace_colour = behaviour_trace_colour_list[trace_index]
+
+                patch = mpatches.Patch(color=trace_colour, label=trace_name)
+                patch_list.append(patch)
+
+            patch_list.reverse()
+            legend_axis.legend(handles=patch_list, fontsize='xx-large', loc='center')
+            legend_axis.axis('off')
+
+        plt.draw()
+        #plt.savefig(os.path.join(full_save_path, str(timepoint_count).zfill(3) + ".png"))
+        plt.pause(0.1)
+        plt.clf()
+
+         # plt.show()
+        timepoint_count += 1
+
+
 
 
 def create_generic_comparison_video_3_conditions_behaviour(base_directory, mean_activity_tensors, trial_start, trial_stop, plot_titles, save_directory, behaviour_dict_list, timestep=36):
@@ -787,12 +991,19 @@ def create_generic_comparison_video_behaviour(base_directory, mean_activity_tens
         condition_2_activity_image = gaussian_smooth_image(condition_2_activity_image, image_height, image_width)
         difference_image = gaussian_smooth_image(difference_image, image_height, image_width)
 
-        # Scale Difference Images To Between 0 and 1
-        difference_image = scale_difference_image(difference_image)
+        # Normalise Images
+        normalisation_factor = 65535
+        condition_1_activity_image = np.divide(float(condition_1_activity_image), normalisation_factor)
+        condition_2_activity_image = np.divide(float(condition_2_activity_image), normalisation_factor)
+        difference_image = np.divide(float(difference_image), normalisation_factor)
 
         # Convert These To Colours
-        delta_f_colourmap = cm.get_cmap('jet')
-        difference_colourmap = cm.get_cmap('bwr')
+        delta_f_colourmap_data = cm.get_cmap('jet')
+        difference_colourmap_data = cm.get_cmap('bwr')
+        delta_f_norm = Normalize(vmin=0, vmax=1)
+        difference_norm = Normalize(vmin=-0.5, vmax=0.5)
+        delta_f_colourmap = cm.ScalarMappable(cmap=delta_f_colourmap_data, norm=delta_f_norm)
+        difference_colourmap = cm.ScalarMappable(cmap=difference_colourmap_data, norm=difference_norm)
 
         condition_1_activity_image = delta_f_colourmap(condition_1_activity_image)
         condition_2_activity_image = delta_f_colourmap(condition_2_activity_image)
@@ -916,6 +1127,9 @@ def create_generic_comparison_video(base_directory, mean_activity_tensor_list, t
     # Get Region Boundaries
     #masked_atlas, atlas_indicies = add_region_boundaries(base_directory)
 
+    # Load Metadata
+    pixel_baseline_list, pixel_maximum_list = load_metadata(base_directory)
+
     # Load Tensors
     condition_1_activity_mean = mean_activity_tensor_list[0]
     condition_1_activity_tensor = reconstruct_images_from_activity(condition_1_activity_mean, base_directory)
@@ -960,16 +1174,28 @@ def create_generic_comparison_video(base_directory, mean_activity_tensor_list, t
         condition_2_activity_image = gaussian_smooth_image(condition_2_activity_image, image_height, image_width)
         difference_image = gaussian_smooth_image(difference_image, image_height, image_width)
 
-        # Scale Difference Images To Between 0 and 1
-        difference_image = scale_difference_image(difference_image)
+        # Convert To Floats
+        condition_1_activity_image = np.ndarray.astype(condition_1_activity_image, float)
+        condition_2_activity_image = np.ndarray.astype(condition_2_activity_image, float)
+        difference_image = np.ndarray.astype(difference_image, float)
+
+        # Normalise Images
+        normalisation_factor = 65535
+        condition_1_activity_image = np.divide(condition_1_activity_image, normalisation_factor)
+        condition_2_activity_image = np.divide(condition_2_activity_image, normalisation_factor)
+        difference_image = np.divide(difference_image, normalisation_factor)
 
         # Convert These To Colours
-        delta_f_colourmap = cm.get_cmap('jet')
-        difference_colourmap = cm.get_cmap('bwr')
+        delta_f_colourmap_data = cm.get_cmap('jet')
+        difference_colourmap_data = cm.get_cmap('bwr')
+        delta_f_norm = Normalize(vmin=0, vmax=0.8)
+        difference_norm = Normalize(vmin=-0.5, vmax=0.5)
+        delta_f_colourmap = cm.ScalarMappable(cmap=delta_f_colourmap_data, norm=delta_f_norm)
+        difference_colourmap = cm.ScalarMappable(cmap=difference_colourmap_data, norm=difference_norm)
 
-        condition_1_activity_image = delta_f_colourmap(condition_1_activity_image)
-        condition_2_activity_image = delta_f_colourmap(condition_2_activity_image)
-        difference_image = difference_colourmap(difference_image)
+        condition_1_activity_image = delta_f_colourmap.to_rgba(condition_1_activity_image)
+        condition_2_activity_image = delta_f_colourmap.to_rgba(condition_2_activity_image)
+        difference_image = difference_colourmap.to_rgba(difference_image)
 
         # Flatten Arrays
         condition_1_activity_image = np.ndarray.reshape(condition_1_activity_image, (image_height * image_width, 4))
@@ -1016,6 +1242,25 @@ def create_generic_comparison_video(base_directory, mean_activity_tensor_list, t
 
          # plt.show()
         timepoint_count += 1
+
+
+
+def load_metadata(base_directory):
+
+    delta_f_file = tables.open_file(os.path.join(base_directory, "Delta_F.h5"))
+    pixel_baseline_list = delta_f_file.root.pixel_baseline_list
+    pixel_maximum_list = delta_f_file.root.pixel_maximum_list
+
+    pixel_baseline_list = np.array(pixel_baseline_list)
+    pixel_maximum_list = np.array(pixel_maximum_list)
+
+    pixel_baseline_list = np.ndarray.flatten(pixel_baseline_list)
+    pixel_maximum_list = np.ndarray.flatten(pixel_maximum_list)
+
+    print("Pixel Baseline List", pixel_baseline_list)
+    print("Pixel Maximum List", pixel_maximum_list)
+
+    return pixel_baseline_list, pixel_maximum_list
 
 
 

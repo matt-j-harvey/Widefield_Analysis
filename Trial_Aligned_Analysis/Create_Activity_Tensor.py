@@ -57,12 +57,16 @@ def get_activity_tensor(activity_matrix, onsets, start_window, stop_window):
     # Create Empty Tensor To Hold Data
     activity_tensor = np.zeros((number_of_trials, number_of_timepoints, number_of_pixels))
 
+    print("Number of trials", number_of_trials)
     # Get Correlation Matrix For Each Trial
     for trial_index in range(number_of_trials):
 
         # Get Trial Activity
         trial_start = onsets[trial_index] + start_window
         trial_stop = onsets[trial_index] + stop_window
+        print("Trial Start", trial_start)
+        print("Trial Stop", trial_stop)
+
         trial_activity = activity_matrix[trial_start:trial_stop]
         activity_tensor[trial_index] = trial_activity
 
@@ -240,23 +244,17 @@ def create_allen_atlas_activity_tensor(base_directory, onsets_file_list, trial_s
 
 
 
-def create_activity_tensor(base_directory, onsets_file_list, trial_start, trial_stop, tensor_name, spatial_smoothing=False, smoothing_sd=2, save_tensor=True):
+def create_activity_tensor(base_directory, onsets_file, trial_start, trial_stop, tensor_name, spatial_smoothing=False, smoothing_sd=2, save_tensor=True):
     print(base_directory)
 
 
     # Load Delta F Matrix
-    delta_f_matrix_filepath = os.path.join(base_directory, "Delta_F.hdf5")
-    delta_f_matrix_container = h5py.File(delta_f_matrix_filepath, 'r')
-    delta_f_matrix = delta_f_matrix_container['Data']
+    delta_f_matrix_filepath = os.path.join(base_directory, "Delta_F.h5")
+    delta_f_matrix_container = tables.open_file(delta_f_matrix_filepath, mode='r')
+    delta_f_matrix = delta_f_matrix_container.root.Data
 
     # Load Onsets
-    onsets = []
-    print("Onsets file List", onsets_file_list)
-    for onsets_file in onsets_file_list:
-        print("Onsets File", onsets_file)
-        onsets_file_contents = np.load(os.path.join(base_directory, "Stimuli_Onsets", onsets_file))
-        for onset in onsets_file_contents:
-            onsets.append(onset)
+    onsets = np.load(os.path.join(base_directory, "Stimuli_Onsets", onsets_file))
     print("Number_of_trails: ", len(onsets))
 
     # Create Trial Tensor

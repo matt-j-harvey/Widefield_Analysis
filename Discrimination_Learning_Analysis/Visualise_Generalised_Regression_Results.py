@@ -87,19 +87,19 @@ def visualise_regression_results(session, model_name):
     r2 = regression_dictionary["R2"]
     error = regression_dictionary['Full_Sum_Sqaure_Error']
     regression_coefficients = regression_dictionary["Regression_Coefficients"]
-    partial_determination_coefficients = regression_dictionary["Coefficients_of_Partial_Determination"]
+    #partial_determination_coefficients = regression_dictionary["Coefficients_of_Partial_Determination"]
 
     number_of_conditions = len(regression_coefficients)
     for condition_index in range(number_of_conditions):
 
         condition_regression_coefs = regression_coefficients[condition_index]
-        condition_cpds = partial_determination_coefficients[condition_index]
+        #condition_cpds = partial_determination_coefficients[condition_index]
 
         print("Coefs", np.shape(condition_regression_coefs))
-        print("CPDs", np.shape(condition_cpds))
+        #print("CPDs", np.shape(condition_cpds))
 
         visualise_coefficients(session, regression_coefficients[condition_index])
-        visualise_coefficients(session, partial_determination_coefficients[condition_index])
+        #visualise_coefficients(session, partial_determination_coefficients[condition_index])
 
 
 session_list = [
@@ -195,5 +195,16 @@ session_list = [
 
 model_name = "Lick_Onsets"
 
+session_list = [
+    r"/media/matthew/External_Harddrive_1/Processed_Widefield_Data/Beverly/2022_05_16_Mirror_Imaging",
+    r"/media/matthew/External_Harddrive_1/Processed_Widefield_Data/Beverly/2022_05_18_Mirror_Imaging",
+    r"/media/matthew/External_Harddrive_1/Processed_Widefield_Data/Beverly/2022_05_23_mirror_imaging",
+    r"/media/matthew/External_Harddrive_1/Processed_Widefield_Data/Beverly/2022_05_27_mirror_imaging",
+]
+
+model_name = "Absence_Of_Expected_Visual_Stimuli"
+
+
 for session in session_list:
     visualise_regression_results(session, model_name)
+
