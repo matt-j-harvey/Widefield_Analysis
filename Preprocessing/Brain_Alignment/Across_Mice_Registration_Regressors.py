@@ -424,7 +424,7 @@ def get_map_edges(map):
     return map_edges
 
 
-def load_mouse_regressors(session_list, visualise=True):
+def load_mouse_regressors(session_list, visualise=False):
 
     mouse_lick_list = []
     mouse_running_list = []
@@ -507,10 +507,10 @@ def load_mouse_regressors(session_list, visualise=True):
 def load_atlas():
 
     # Load Atlas Boundaires
-    allen_atlas_boundaries = np.load(r"/home/matthew/Documents/Github_Code_Clean/Transition_Analysis/Brain_Registration/Atlas_Outlines.npy")
+    allen_atlas_boundaries = np.load(r"/home/matthew/Documents/Github_Code_Clean/Widefield_Analysis/Files/Atlas_Outlines.npy")
 
     # Load Atlas ALignment Dict
-    atlas_alignment_dictionary = np.load(r"/home/matthew/Documents/Github_Code_Clean/Transition_Analysis/Brain_Registration/Atlas_Alignment_Dictionary.npy", allow_pickle=True)[()]
+    atlas_alignment_dictionary = np.load(r"/home/matthew/Documents/Github_Code_Clean/Widefield_Analysis/Files/Atlas_Alignment_Dictionary.npy", allow_pickle=True)[()]
 
     # Align Atlas
     allen_atlas_boundaries = Registration_Utils.transform_mask_or_atlas(allen_atlas_boundaries, atlas_alignment_dictionary)
@@ -554,7 +554,7 @@ mouse_list = [
     r"/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK16.1B/2021_06_23_Switching_Imaging",
     r"/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK16.1B/2021_06_30_Transition_Imaging",
     r"/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK16.1B/2021_07_06_Transition_Imaging",
-    r"/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK16.1B/2021_07_08_Transition_Imaging"]
+    r"/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK16.1B/2021_07_08_Transition_Imaging"],
 
 ]
 

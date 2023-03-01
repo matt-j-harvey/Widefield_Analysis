@@ -4,6 +4,7 @@ import tables
 from scipy import ndimage
 from skimage.feature import canny
 import math
+import pkg_resources
 
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
@@ -47,8 +48,6 @@ class masking_window(QWidget):
         self.number_of_sessions = len(self.session_list)
         self.current_template_index = 0
         self.current_matching_index = 0
-        self.zoom_vector_u = np.load(r"/home/matthew/Documents/Github_Code_Clean/Preprocessing/Brain_Alignment/zoom_optic_flow_u.npy")
-        self.zoom_vector_v = np.load(r"/home/matthew/Documents/Github_Code_Clean/Preprocessing/Brain_Alignment/zoom_optic_flow_v.npy")
 
         # Get List Of Max Projections
         self.max_projection_list = []
@@ -366,10 +365,17 @@ mouse_base_directory = r"/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK2
 #mouse_base_directory = r"/media/matthew/Expansion/Control_Data/NXAK22.1A"
 
 
+mouse_base_directory = r"/media/matthew/External_Harddrive_2/Widefield_Data_New_Pipeline/Switching_Opto/KPGC2.2G"
+mouse_base_directory = r"/media/matthew/External_Harddrive_2/Cortex_Wide_Opto/KPGC3.1D"
+mouse_base_directory = r"/media/matthew/Expansion/Control_Data/NXAK22.1A"
+mouse_base_directory = r"/media/matthew/External_Harddrive_2/Cortex_Wide_Opto/KPGC3.1F"
+
 subfolder_list = os.listdir(mouse_base_directory)
 session_list = []
 for session in subfolder_list:
-    session_list.append(os.path.join(mouse_base_directory, session))
+    if "Continuous_Retinotopic_Mapping" in session or "Discrimination" in session or "Transition" in session or "Switching" in session:
+        session_list.append(os.path.join(mouse_base_directory, session))
+
 print("Session List:")
 for session in session_list:
     print(session)

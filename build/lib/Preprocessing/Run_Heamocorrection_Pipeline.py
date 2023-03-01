@@ -87,13 +87,13 @@ def run_heamocorrection_on_server(mouse_name, save_root, subfolder_list=None, op
         shutil.copyfile(source_mask, dest_mask)
 
         # Create Downsampled Mask Dict
-        #Create_Downsampled_Mask_Dict.create_downsampled_mask_dict(session_save_folder)
+        Create_Downsampled_Mask_Dict.create_downsampled_mask_dict(session_save_folder)
 
         # Downsample Raw Data
-        #Downsample_Existing_Data.downsample_session(base_directory, session_save_folder)
+        Downsample_Existing_Data.downsample_session(base_directory, session_save_folder)
 
         # Create Example Images
-        #Get_Example_Images.get_example_images(session_save_folder, session_save_folder)
+        Get_Example_Images.get_example_images(session_save_folder, session_save_folder)
 
         # Perform Heamocorrection
         Downsampled_Delta_F_With_Regression.create_delta_f_file(session_save_folder, session_save_folder)
@@ -110,6 +110,8 @@ for mouse in mutant_mice:
     run_heamocorrection_on_server(mouse, save_root, subfolder_list=subfolder_list, operating_system='linux')
 """
 
-session_list = ["/media/matthew/External_Harddrive_3/Opto_Test/KPGC2.2H/2022_11_10_Opto_Test_No_Filter"]
+
+session_list = ["//media/matthew/External_Harddrive_2/Widefield_Data_New_Pipeline/Switching_Opto/KPGC2.1G/2022_12_20_Switching_Opto"]
+
 for base_directory in session_list:
     run_heamocorrection_locally(base_directory)

@@ -118,7 +118,7 @@ def get_mousecam_sample(base_directory, mousecam_filename, sample_start, sample_
 
 
 
-def create_sample_video_with_mousecam(base_directory, output_directory):
+def create_sample_video_with_mousecam(delta_f_directory, bodycam_directory, output_directory):
 
     sample_start = 10000
     sample_length = 5000

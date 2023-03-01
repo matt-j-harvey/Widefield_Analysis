@@ -8,7 +8,7 @@ import cv2
 from datetime import datetime
 from matplotlib.colors import LinearSegmentedColormap
 from sklearn.decomposition import PCA, FactorAnalysis, TruncatedSVD
-from skimage.transform import resize
+from skimage.transform import resize, downscale_local_mean
 from scipy.ndimage import gaussian_filter
 from tqdm import tqdm
 import time

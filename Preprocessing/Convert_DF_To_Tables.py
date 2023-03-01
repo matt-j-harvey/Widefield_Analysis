@@ -40,3 +40,15 @@ def convert_df_to_tables(base_directory, output_directory):
 
     delta_f_file.close()
     output_file_container.close()
+
+
+
+session_list = [
+"/media/matthew/External_Harddrive_1/Neurexin_Data/NRXN71.2A/2020_12_01_Discrimination_Imaging",
+"/media/matthew/External_Harddrive_1/Neurexin_Data/NRXN71.2A/2020_12_01_Discrimination_Imaging",
+#"/media/matthew/External_Harddrive_1/Neurexin_Data/NRXN71.2A/2020_12_05_Discrimination_Imaging"
+]
+
+for base_directory in session_list:
+
+    convert_df_to_tables(base_directory, base_directory)

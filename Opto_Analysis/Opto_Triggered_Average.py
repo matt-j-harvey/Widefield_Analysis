@@ -389,7 +389,7 @@ def get_average_opto_responses(base_directory):
 
 
 
-session_list = ["/media/matthew/External_Harddrive_3/Opto_Test/KPGC2.2H/2022_11_14_Opto_Test_Filter"]
+session_list = ["/media/matthew/External_Harddrive_3/Opto_Test/KPGC3.1F/2022_12_12_Opto_Test_Filter"]
 for base_directory in session_list:
     get_average_opto_responses(base_directory)
     plot_composite_activations(base_directory)

@@ -3,8 +3,9 @@ import sys
 import numpy as np
 from bisect import bisect_left
 
-import Regression_Utils
-
+def invert_dictionary(dictionary):
+    inv_map = {v: k for k, v in dictionary.items()}
+    return inv_map
 
 def take_closest(myList, myNumber):
 
@@ -29,10 +30,13 @@ def take_closest(myList, myNumber):
 def match_mousecam_to_widefield_frames(base_directory):
 
     # Load Frame Times
-    widefield_frame_times = np.load(os.path.join(base_directory, "Stimuli_Onsets", "Frame_Times.npy"), allow_pickle=True)[()]
-    mousecam_frame_times = np.load(os.path.join(base_directory, "Stimuli_Onsets", "Mousecam_Frame_Times.npy"), allow_pickle=True)[()]
+    widefield_frame_times = np.load(os.path.join(base_directory, "Stimuli_Onsets", "Frame_Times.npy"), allow_pickle=True)[()] # Keys are Times, Values Are Frames
+    mousecam_frame_times = np.load(os.path.join(base_directory, "Stimuli_Onsets", "Mousecam_Frame_Times.npy"), allow_pickle=True)[()] # Keys are Times, Values Are Frames
 
-    widefield_frame_times = Regression_Utils.invert_dictionary(widefield_frame_times)
+    print("Min Widefield Frame Time", np.min(list(widefield_frame_times.keys())), "Maximum Widefield Frame Time", np.max(list(widefield_frame_times.keys())))
+    print("Min Mousecam Frame Time", np.min(list(mousecam_frame_times.keys())), "Maximum Mousecam Frame Time", np.max(list(mousecam_frame_times.keys())))
+
+    widefield_frame_times = invert_dictionary(widefield_frame_times)
     widefield_frame_time_keys = list(widefield_frame_times.keys())
     mousecam_frame_times_keys = list(mousecam_frame_times.keys())
     mousecam_frame_times_keys.sort()
@@ -54,5 +58,44 @@ def match_mousecam_to_widefield_frames(base_directory):
     save_directoy = os.path.join(base_directory, "Stimuli_Onsets", "widfield_to_mousecam_frame_dict.npy")
     np.save(save_directoy, widfield_to_mousecam_frame_dict)
 
-base_directory = r"/media/matthew/External_Harddrive_1/Neurexin_Data/NRXN71.2A/2020_12_17_Switching_Imaging"
-match_mousecam_to_widefield_frames(base_directory)
+
+
+
+session_list = [
+
+        r"/media/matthew/Expansion/Control_Data/NRXN78.1A/2020_11_15_Discrimination_Imaging",
+         r"/media/matthew/Expansion/Control_Data/NRXN78.1A/2020_11_24_Discrimination_Imaging",
+
+        r"/media/matthew/Expansion/Control_Data/NRXN78.1D/2020_11_15_Discrimination_Imaging",
+         r"/media/matthew/Expansion/Control_Data/NRXN78.1D/2020_11_25_Discrimination_Imaging",
+
+        r"/media/matthew/Expansion/Control_Data/NXAK4.1B/2021_02_06_Discrimination_Imaging",
+         r"/media/matthew/Expansion/Control_Data/NXAK4.1B/2021_02_22_Discrimination_Imaging",
+
+        r"/media/matthew/Expansion/Control_Data/NXAK7.1B/2021_02_03_Discrimination_Imaging",
+         r"/media/matthew/Expansion/Control_Data/NXAK7.1B/2021_02_24_Discrimination_Imaging",
+
+        r"/media/matthew/Expansion/Control_Data/NXAK14.1A/2021_05_01_Discrimination_Imaging",
+         r"/media/matthew/Expansion/Control_Data/NXAK14.1A/2021_05_09_Discrimination_Imaging",
+
+        r"/media/matthew/Expansion/Control_Data/NXAK22.1A/2021_09_29_Discrimination_Imaging",
+         r"/media/matthew/Expansion/Control_Data/NXAK22.1A/2021_10_08_Discrimination_Imaging"
+
+    ]
+
+session_list = [
+    r"/media/matthew/Expansion/Control_Data/NRXN78.1A/2020_11_14_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Control_Data/NRXN78.1A/2020_11_21_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Control_Data/NRXN78.1D/2020_11_14_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Control_Data/NRXN78.1D/2020_11_23_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Control_Data/NXAK4.1B/2021_02_04_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Control_Data/NXAK4.1B/2021_02_14_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Control_Data/NXAK7.1B/2021_02_01_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Control_Data/NXAK7.1B/2021_02_22_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Control_Data/NXAK14.1A/2021_04_29_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Control_Data/NXAK14.1A/2021_05_07_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Control_Data/NXAK22.1A/2021_09_25_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Control_Data/NXAK22.1A/2021_10_07_Discrimination_Imaging"
+]
+for session in session_list:
+    match_mousecam_to_widefield_frames(session)

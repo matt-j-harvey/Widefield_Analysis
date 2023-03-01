@@ -3,8 +3,233 @@ import tables
 import os
 import pandas as pd
 from scipy import ndimage
-from skimage.transform import resize
+from skimage.transform import resize, rescale
+from skimage.feature import canny
+from skimage.morphology import binary_opening, binary_erosion, binary_dilation
 from matplotlib.colors import LinearSegmentedColormap
+import pathlib
+import pkg_resources
+from bisect import bisect_left
+
+import matplotlib.pyplot as plt
+
+"""
+def get_package_file_directory():
+    cwd = pathlib.Path.cwd()
+    package_root_directory = list(cwd.parts[:-1])
+    package_root_directory.append("Files")
+    package_file_directory = package_root_directory[0]
+    for item in package_root_directory[1:]:
+        package_file_directory = os.path.join(package_file_directory, item)
+
+    return package_file_directory
+"""
+
+def get_session_folder_in_tensor_directory(base_directory, save_directory_root):
+
+    # Create Output Directory
+    split_base_directory = os.path.normpath(base_directory)
+    split_base_directory = split_base_directory.split(os.sep)
+    mouse_name = split_base_directory[-2]
+    session_name = split_base_directory[-1]
+
+    # Check Mouse Directory Exists
+    mouse_directory = os.path.join(save_directory_root, mouse_name)
+    if not os.path.exists(mouse_directory):
+        os.mkdir(mouse_directory)
+
+    # Check Session Save Directory Exists
+    output_directory = os.path.join(mouse_directory, session_name)
+    if not os.path.exists(output_directory):
+        os.mkdir(output_directory)
+
+    return output_directory
+
+
+
+
+def get_mask_edge_pixels(indicies, image_height, image_width):
+    template = np.zeros(image_height * image_width)
+    template[indicies] = 1
+    template = np.reshape(template, (image_height, image_width))
+    edges = canny(template)
+    edge_indicies = np.nonzero(edges)
+    return edge_indicies
+
+
+def get_atlas_outline_pixels():
+
+    # Load Atlas
+    atlas_outline = np.load("/home/matthew/Documents/Github_Code_Clean/Widefield_Analysis/Files/Atlas_Outlines.npy")
+
+    # Load Atlas Transformation Dict
+    transformation_dict = np.load(r"/home/matthew/Documents/Github_Code_Clean/Widefield_Analysis/Files/Atlas_Alignment_Dictionary.npy", allow_pickle=True)[()]
+
+    # Transform Atlas
+    atlas_outline = transform_mask_or_atlas(atlas_outline, transformation_dict)
+
+    atlas_pixels = np.nonzero(atlas_outline)
+    return atlas_pixels
+
+
+
+def get_background_pixels(indicies, image_height, image_width):
+    template = np.ones(image_height * image_width)
+    template[indicies] = 0
+    template = np.reshape(template, (image_height, image_width))
+    background_pixels = np.nonzero(template)
+    return background_pixels
+
+
+def get_best_grid(n_items):
+
+    """ Return The Best Arrangement Of Rows and Columns To Display N Items In A Grid """
+
+    # Take Square Root
+    square_root = np.sqrt(n_items)
+    print("Square Root", square_root)
+
+    # Floor This
+    floor_root = np.floor(square_root)
+    print("Root Floor", floor_root)
+
+    # Divide By This Floor
+    divisor = np.divide(n_items, floor_root)
+    print("Divisor", divisor)
+
+    # Take Ceiling Of This
+    divisor_ceiling = np.ceil(divisor)
+    print("Divisor Celing", divisor_ceiling)
+
+    return int(floor_root), int(divisor_ceiling)
+
+
+
+def take_closest(myList, myNumber):
+
+    """
+    Assumes myList is sorted. Returns closest value to myNumber.
+    If two numbers are equally close, return the smallest number.
+    """
+
+    pos = bisect_left(myList, myNumber)
+    if pos == 0:
+        return myList[0]
+    if pos == len(myList):
+        return myList[-1]
+    before = myList[pos - 1]
+    after = myList[pos]
+    if after - myNumber < myNumber - before:
+        return after
+    else:
+        return before
+
+
+def get_mouse_name_and_session_name(base_directory):
+
+    # Create Output Directory
+    split_base_directory = os.path.normpath(base_directory)
+    split_base_directory = split_base_directory.split(os.sep)
+    mouse_name = split_base_directory[-2]
+    session_name = split_base_directory[-1]
+
+    return mouse_name, session_name
+
+def load_downsampled_mask(base_directory):
+    mask_dict = np.load(os.path.join(base_directory, "Downsampled_mask_dict.npy"), allow_pickle=True)[()]
+    indicies = mask_dict["indicies"]
+    image_height = mask_dict["image_height"]
+    image_width = mask_dict["image_width"]
+    return indicies, image_height, image_width
+
+"""
+def load_within_mouse_aligned_mask(base_directory):
+
+    # Load Downsampled Mask
+    indicies, image_height, image_width = load_downsampled_mask(base_directory)
+
+    # Recreate Image
+    template = np.zeros((image_height * image_width))
+    template[indicies] = 1
+    template = np.reshape(template, (image_height, image_width))
+
+    # Load Alignment Dictionary
+    wihin_mouse_alignment_dictionary = np.load(os.path.join(base_directory, "Within_Mouse_Alignment_Dictionary.npy"), allow_pickle=True)[()]
+
+    # Transform Mask
+    template = transform_image(template, wihin_mouse_alignment_dictionary)
+
+    # Get New Indicies
+    template = np.where(template > 0.1, 1, 0)
+    template = np.reshape(template, (image_height * image_width))
+    indicies = np.nonzero(template)
+
+    return indicies, image_height, image_width
+"""
+
+def load_all_sessions_of_type(session_type):
+
+    # This Is The Location of My Experimental Logbook
+    logbook_file_location = r"/home/matthew/Documents/Experiment_Logbook.ods"
+
+    #  Read Logbook As A Dataframe
+    logbook_dataframe = pd.read_excel(logbook_file_location, engine="odf")
+
+    # Return A List Of the File Directories Of Sessions Matching The Mouse Name and Session Type
+    selected_sessions = logbook_dataframe.loc[(logbook_dataframe["Session Type"] == session_type), ["Filepath"]].values.tolist()
+
+    # Flatten The Subsequent Nested List
+    selected_sessions = flatten(selected_sessions)
+
+    return selected_sessions
+
+def get_bodycam_filename(base_directory):
+
+    file_list = os.listdir(base_directory)
+
+    for file in file_list:
+        file_split = file.split('_')
+        if file_split[-1] == '1.mp4' and file_split[-2] == 'cam':
+            return file
+
+def get_eyecam_filename(base_directory):
+
+    file_list = os.listdir(base_directory)
+
+    for file in file_list:
+        file_split = file.split('_')
+        if file_split[-1] == '2.mp4' and file_split[-2] == 'cam':
+            return file
+
+
+
+def load_across_mice_alignment_dictionary(base_directory):
+
+    # Get Root Directory
+    base_directory_parts = pathlib.Path(base_directory)
+    base_directory_parts = list(base_directory_parts.parts)
+    root_directory = base_directory_parts[0]
+    for subfolder in base_directory_parts[1:-1]:
+        root_directory = os.path.join(root_directory, subfolder)
+
+    # Load Alignment Dictionary
+    across_mouse_alignment_dictionary = np.load(os.path.join(root_directory, "Across_Mouse_Alignment_Dictionary.npy"), allow_pickle=True)[()]
+
+    return across_mouse_alignment_dictionary
+
+
+
+def downsample_mask_further(indicies, image_height, image_width, downsample_size=100):
+    template = np.zeros((image_height*image_width))
+    template[indicies] = 1
+    template = np.reshape(template, (image_height, image_width))
+    template = resize(template, (downsample_size, downsample_size), anti_aliasing=True)
+    template = np.reshape(template, (downsample_size * downsample_size))
+    template = np.where(template > 0.5, 1, 0)
+    template_indicies = np.nonzero(template)
+    return template_indicies, downsample_size, downsample_size
+
+
 
 def flatten(l):
     return [item for sublist in l for item in sublist]
@@ -89,7 +314,6 @@ def create_image_from_data(data, indicies, image_height, image_width):
     data = np.nan_to_num(data)
     np.put(template, indicies, data)
     image = np.ndarray.reshape(template, (image_height, image_width))
-
     return image
 
 def get_musall_cmap():
@@ -106,31 +330,56 @@ def get_musall_cmap():
     return cmap
 
 
+
 def transform_image(image, variable_dictionary, invert=False):
 
-    # Unpack Dict
+    # Settings
+    background_size = 1000
+    background_offset = 200
+    origional_height, origional_width = np.shape(image)
+    window_y_start = background_offset
+    window_y_stop = window_y_start + origional_height
+    window_x_start = background_offset
+    window_x_stop = window_x_start + origional_width
+
+    # Unpack Transformation Details
     angle = variable_dictionary['rotation']
     x_shift = variable_dictionary['x_shift']
     y_shift = variable_dictionary['y_shift']
+    scale_factor = variable_dictionary['zoom']
 
     # Inverse
     if invert == True:
         angle = -1 * angle
         x_shift = -1 * x_shift
         y_shift = -1 * y_shift
+        scale_factor = 1 - scale_factor
+    else:
+        scale_factor = 1 + scale_factor
 
+    # Copy
     transformed_image = np.copy(image)
-    transformed_image = np.nan_to_num(transformed_image)
-    transformed_image = ndimage.rotate(transformed_image, angle, reshape=False, prefilter=True, order=1)
 
-    """
-    plt.title("Just rotated")
-    plt.imshow(transformed_image, vmin=0, vmax=2)
-    plt.show()
-    """
+    # Scale
+    transformed_image = rescale(transformed_image, scale_factor, anti_aliasing=False, preserve_range=True)
 
-    transformed_image = np.roll(a=transformed_image, axis=0, shift=y_shift)
-    transformed_image = np.roll(a=transformed_image, axis=1, shift=x_shift)
+    # Rotate
+    transformed_image = ndimage.rotate(transformed_image, angle, reshape=False, prefilter=True)
+
+    # Translate
+    background = np.zeros((background_size, background_size))
+    new_height, new_width = np.shape(transformed_image)
+
+    y_start = background_offset + y_shift
+    y_stop = y_start + new_height
+
+    x_start = background_offset + x_shift
+    x_stop = x_start + new_width
+
+    background[y_start:y_stop, x_start:x_stop] = transformed_image
+
+    # Get Normal Sized Window
+    transformed_image = background[window_y_start:window_y_stop, window_x_start:window_x_stop]
 
     return transformed_image
 
@@ -182,6 +431,71 @@ def load_generous_mask(base_directory):
 
     return indicies, image_height, image_width
 
+
+
+
+
+def transform_atlas_regions(image, variable_dictionary):
+
+
+    unique_values = list(set(np.unique(image)))
+
+    transformed_mask = np.zeros(np.shape(image))
+
+    for value in unique_values:
+        value_mask = np.where(image == value, 1, 0)
+        value_mask = transform_mask_or_atlas_300(value_mask, variable_dictionary)
+        value_indicies = np.nonzero(value_mask)
+        transformed_mask[value_indicies] = value
+
+    return transformed_mask
+
+
+
+def transform_mask_or_atlas_300(image, variable_dictionary):
+
+    image_height = 300
+    image_width = 304
+
+    # Unpack Dictionary
+    angle = variable_dictionary['rotation']
+    x_shift = variable_dictionary['x_shift']
+    y_shift = variable_dictionary['y_shift']
+    x_scale = variable_dictionary['x_scale']
+    y_scale = variable_dictionary['y_scale']
+
+    # Copy
+    transformed_image = np.copy(image)
+
+    # Scale
+    original_height, original_width = np.shape(transformed_image)
+    new_height = int(original_height * y_scale)
+    new_width = int(original_width * x_scale)
+    transformed_image = resize(transformed_image, (new_height, new_width), preserve_range=True)
+
+    # Rotate
+    transformed_image = ndimage.rotate(transformed_image, angle, reshape=False, prefilter=True)
+
+    # Insert Into Background
+    mask_height, mask_width = np.shape(transformed_image)
+    centre_x = 200
+    centre_y = 200
+    background_array = np.zeros((1000, 1000))
+    x_start = centre_x + x_shift
+    x_stop = x_start + mask_width
+
+    y_start = centre_y + y_shift
+    y_stop = y_start + mask_height
+
+    background_array[y_start:y_stop, x_start:x_stop] = transformed_image
+
+    # Take Chunk
+    transformed_image = background_array[centre_y:centre_y + image_height, centre_x:centre_x + image_width]
+
+    # Rebinarize
+    transformed_image = np.where(transformed_image > 0.5, 1, 0)
+
+    return transformed_image
 
 
 def transform_mask_or_atlas(image, variable_dictionary):
@@ -271,25 +585,16 @@ def get_activity_tensor(base_directory, onset_file, start_window, stop_window, s
 
 def load_tight_mask():
 
-    mask = np.load("/home/matthew/Documents/Allen_Atlas_Templates/Mask_Array.npy")
-    mask_alignment_dictionary = np.load(r"/media/matthew/Expansion/Widefield_Analysis/Consensus_Clustering/Tight_Mask_Alignment_Dictionary.npy", allow_pickle=True)[()]
+    #package_file_directory = get_package_file_directory()
+    #tight_mask_file = os.path.join(package_file_directory, "Tight_Mask_Dict.npy")
 
-    # Transform Mask
-    mask = transform_mask_or_atlas(mask, mask_alignment_dictionary)
+    tight_mask_file = pkg_resources.resource_stream('Files', 'Tight_Mask_Dict.npy')
 
-    image_height = np.shape(mask)[0]
-    image_width = np.shape(mask)[1]
-
-    mask = np.where(mask>0.1, 1, 0)
-    mask = mask.astype(int)
-    flat_mask = np.ndarray.flatten(mask)
-    indicies = np.argwhere(flat_mask)
-    indicies = np.ndarray.astype(indicies, int)
-    indicies = np.ndarray.flatten(indicies)
-
+    tight_mask_dict = np.load(tight_mask_file, allow_pickle=True)[()]
+    indicies = tight_mask_dict["indicies"]
+    image_height = tight_mask_dict["image_height"]
+    image_width = tight_mask_dict["image_width"]
     return indicies, image_height, image_width
-
-
 
 
 def load_tight_mask_downsized():
@@ -398,3 +703,8 @@ def load_analysis_container(analysis_name):
 
     # Return Container
     return [start_window, stop_window, onset_files, tensor_names, behaviour_traces, difference_conditions]
+
+
+def check_directory(directory):
+    if not os.path.exists(directory):
+        os.mkdir(directory)

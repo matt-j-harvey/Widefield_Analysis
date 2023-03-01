@@ -170,7 +170,6 @@ def downsample_session(base_directory, output_directory, output_file_name="Motio
     print("Nuber Of Frames", number_of_frames, "Number Of Pixels", number_of_pixels)
     number_of_chunks, chunk_sizes, chunk_starts, chunk_stops = Preprocessing_Utils.get_chunk_structure(preferred_chunk_size, number_of_frames)
 
-    print("Heamocorrecting")
     with h5py.File(os.path.join(output_directory, output_file_name), "w") as f:
        downsampled_blue_data_container = f.create_dataset("Blue_Data", (downsampled_pixels, number_of_frames), dtype=np.uint16, chunks=True, compression=True)
        downsampled_violet_data_container = f.create_dataset("Violet_Data", (downsampled_pixels, number_of_frames), dtype=np.uint16, chunks=True, compression=True)
@@ -199,3 +198,7 @@ def downsample_session(base_directory, output_directory, output_file_name="Motio
 
     view_greyscale_sample(output_directory)
 
+
+
+base_directory = r"/media/matthew/External_Harddrive_2/Cortex_Wide_Opto/KPGC3.1D/2023_02_27_Switching_v1_inhibition"
+downsample_session(base_directory, base_directory, output_file_name="Motion_Corrected_Downsampled_Data.hdf5")

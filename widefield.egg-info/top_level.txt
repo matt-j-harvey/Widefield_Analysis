@@ -1,10 +1,13 @@
 Behaviour_Analysis
 Connectivity
+Files
 Fourier_Retinotopic_Mapping
 Learning_Analysis
 Opto_Analysis
 Preprocessing
 Ridge_Regression_Model
+Trajectory_Analysis
 Transition_Analysis
+Transition_Analysis_2
 Trial_Aligned_Analysis
 Widefield_Utils

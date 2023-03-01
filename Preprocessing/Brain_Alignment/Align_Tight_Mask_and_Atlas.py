@@ -409,12 +409,13 @@ class masking_window(QWidget):
 
     def set_alignment(self):
 
-        consensus_cluster_directory = r"/media/matthew/Expansion/Widefield_Analysis/Consensus_Clustering"
+        #consensus_cluster_directory = r"/media/matthew/Expansion/Widefield_Analysis/Consensus_Clustering"
+        save_directory = r"/home/matthew/Documents/Allen_Atlas_Templates"
 
         # Save Dictionaries
-        np.save(os.path.join(consensus_cluster_directory, "Consensus_Cluster_Atlas_Alignment_Dictionary.npy"), self.atlas_variable_dictionary)
+        #np.save(os.path.join(consensus_cluster_directory, "Consensus_Cluster_Atlas_Alignment_Dictionary.npy"), self.atlas_variable_dictionary)
         #np.save(os.path.join(consensus_cluster_directory, "Tight_Mask_Alignment_Dictionary.npy"), self.mask_variable_dictionary)
-
+        np.save(os.path.join(save_directory, "Churchland_Atlas_Alignment_Dictionary.npy"), self.atlas_variable_dictionary)
 
         pass
 
@@ -446,9 +447,12 @@ def align_sessions(session_list, mask, atlas):
 
 
 mask_location = "/home/matthew/Documents/Allen_Atlas_Templates/Mask_Array.npy"
-atlas_outline_location = "/home/matthew/Documents/Allen_Atlas_Templates/New_Outline.npy"
+#atlas_outline_location = "/home/matthew/Documents/Allen_Atlas_Templates/New_Outline.npy"
+atlas_outline_location = r"/home/matthew/Documents/Allen_Atlas_Templates/churchland_outlines.npy"
 
-session_list = Registration_Utils.load_all_sessions()
+session_list = [r"/media/matthew/Expansion/Control_Data/NXAK22.1A/2021_10_14_Switching_Imaging"]
+
+#session_list = Registration_Utils.load_all_sessions()
 mask = np.load(mask_location)
 atlas_outline = np.load(atlas_outline_location)
 

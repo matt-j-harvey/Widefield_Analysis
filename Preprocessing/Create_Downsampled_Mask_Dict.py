@@ -30,3 +30,6 @@ def create_downsampled_mask_dict(base_directory):
 
 
 
+session_list = [r"/media/matthew/External_Harddrive_2/Cortex_Wide_Opto/KPGC3.1D/2023_02_27_Switching_v1_inhibition"]
+for session in session_list:
+    create_downsampled_mask_dict(session)

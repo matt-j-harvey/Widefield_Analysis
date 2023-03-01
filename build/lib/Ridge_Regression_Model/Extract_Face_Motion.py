@@ -1,67 +1,13 @@
-import matplotlib.pyplot as plt
-from matplotlib.gridspec import GridSpec
-import numpy as np
 import os
-import tables
-from bisect import bisect_left
-from sklearn.linear_model import Ridge
-from sklearn.decomposition import PCA
-from sklearn.neural_network import MLPRegressor
 import cv2
+import numpy as np
+import matplotlib.pyplot as plt
 from tqdm import tqdm
-from datetime import datetime
+from sklearn.decomposition import TruncatedSVD
+from matplotlib.gridspec import GridSpec
 
-import Regression_Utils
-#import Match_Mousecam_Frames_To_Widefield_Frames
-
-
-def match_mousecam_to_widefield_frames(base_directory):
-
-    # Load Frame Times
-    widefield_frame_times = np.load(os.path.join(base_directory, "Stimuli_Onsets", "Frame_Times.npy"), allow_pickle=True)[()]
-    mousecam_frame_times = np.load(os.path.join(base_directory, "Stimuli_Onsets", "Mousecam_Frame_Times.npy"), allow_pickle=True)[()]
-
-    widefield_frame_times = invert_dictionary(widefield_frame_times)
-    widefield_frame_time_keys = list(widefield_frame_times.keys())
-    mousecam_frame_times_keys = list(mousecam_frame_times.keys())
-    mousecam_frame_times_keys.sort()
-
-    # Get Number of Frames
-    number_of_widefield_frames = len(widefield_frame_time_keys)
-
-    # Dictionary - Keys are Widefield Frame Indexes, Values are Closest Mousecam Frame Indexes
-    widfield_to_mousecam_frame_dict = {}
-
-    for widefield_frame in range(number_of_widefield_frames):
-        frame_time = widefield_frame_times[widefield_frame]
-        closest_mousecam_time = take_closest(mousecam_frame_times_keys, frame_time)
-        closest_mousecam_frame = mousecam_frame_times[closest_mousecam_time]
-        widfield_to_mousecam_frame_dict[widefield_frame] = closest_mousecam_frame
-        #print("Widefield Frame: ", widefield_frame, " Closest Mousecam Frame: ", closest_mousecam_frame)
-
-    # Save Directory
-    save_directoy = os.path.join(base_directory, "Stimuli_Onsets", "widfield_to_mousecam_frame_dict.npy")
-    np.save(save_directoy, widfield_to_mousecam_frame_dict)
-
-
-def get_video_name(base_directory):
-
-    file_list = os.listdir(base_directory)
-    for file in file_list:
-        if "_cam_1" in file:
-            return file
-
-
-def get_video_details(base_directory, video_name):
-
-    # Open Video File
-    cap = cv2.VideoCapture(os.path.join(base_directory, video_name))
-
-    frameCount = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    frameWidth = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    frameHeight = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
-    return frameCount, frameHeight, frameWidth
+from Widefield_Utils import widefield_utils
+from Files import Session_List
 
 
 def get_face_data(video_file, face_pixels):
@@ -74,10 +20,7 @@ def get_face_data(video_file, face_pixels):
 
     # Extract Selected Frames
     face_data = []
-
-    print("Extracting Face Video Data")
-    for frame_index in tqdm(range(frameCount)):
-    #while (frame_index < frameCount and ret):
+    for frame_index in range(frameCount):
         ret, frame = cap.read()
         frame = frame[:, :, 0]
 
@@ -93,270 +36,384 @@ def get_face_data(video_file, face_pixels):
     return face_data, frameHeight, frameWidth
 
 
-def get_face_eigenspectrum(face_data, n_components=150):
-
-    model = PCA(n_components=n_components)
-    model.fit(face_data)
-    explained_variance_ratio = model.explained_variance_ratio_
-
-    cumulative_variance_explained_list = []
-
-    for x in range(n_components-1):
-        cumulative_variance_explained = np.sum(explained_variance_ratio[0:x])
-        cumulative_variance_explained_list.append(cumulative_variance_explained)
-
-    print("Explained Variance Ratio", explained_variance_ratio)
-    plt.plot(cumulative_variance_explained_list)
-    plt.show()
-
-    return explained_variance_ratio
-
-
-def decompose_face_data(face_data, n_components=150):
-    model = PCA(n_components=n_components)
-    transformed_data = model.fit_transform(face_data)
-    components = model.components_
-    return transformed_data, components
-
-
-def view_face_motion_components(base_directory, components, face_pixels, image_height, image_width):
-
-    number_of_face_pixels = np.shape(face_pixels)[0]
-    face_y_min = np.min(face_pixels[:, 0])
-    face_y_max = np.max(face_pixels[:, 0])
-    face_x_min = np.min(face_pixels[:, 1])
-    face_x_max = np.max(face_pixels[:, 1])
-
-
-    figure_1 = plt.figure(figsize=(15, 10))
-
-    count = 1
-    for component in components:
-
-        template = np.zeros((image_height, image_width))
-
-        for face_pixel_index in range(number_of_face_pixels):
-            pixel_data = component[face_pixel_index]
-            pixel_position = face_pixels[face_pixel_index]
-            template[pixel_position[0], pixel_position[1]] = pixel_data
-
-        template = template[face_y_min:face_y_max, face_x_min:face_x_max]
-        template_magnitude = np.max(np.abs(template))
-
-        axis = figure_1.add_subplot(10, 15, count)
-        #axis.set_title(count)
-        axis.axis('off')
-        axis.imshow(template, vmax=template_magnitude, vmin=-template_magnitude, cmap='bwr')
-
-        count += 1
-
-    plt.savefig(os.path.join(base_directory, "Mousecam_analysis", "Face_Motion_Components.png"))
-    plt.close()
+def get_bodycam_filename(base_directory):
+    file_list = os.listdir(base_directory)
+    for file_name in file_list:
+        if "_cam_1.mp4" in file_name:
+            return file_name
 
 
 
+def view_whisker_activity(whisker_data, whisker_pixels, frame_height, frame_width):
 
+    number_of_frames = len(whisker_data)
+    number_of_whisker_pixels = np.shape(whisker_pixels)[0]
 
-def match_face_motion_to_widefield_frames(base_directory, transformed_data):
-
-    # Load Widefield Frame Dict
-    widefield_frame_dict = np.load(os.path.join(base_directory, "Stimuli_Onsets", "widfield_to_mousecam_frame_dict.npy"), allow_pickle=True)[()]
-
-    print("Widefield Frame Dict Keys", list(widefield_frame_dict.keys())[0:1000])
-    print("Widefield Frame Dict Values", list(widefield_frame_dict.values())[0:1000])
-
-    # Visualise This
-    """
-    ai_data = Regression_Utils.load_ai_recorder_file(base_directory)
-    stimuli_dictionary = Regression_Utils.create_stimuli_dictionary()
-    blue_led_trace = ai_data[stimuli_dictionary["LED 1"]]
-    mousecam_trace = ai_data[stimuli_dictionary["Mousecam"]]
-
-    mousecam_frame_times = np.load(os.path.join(base_directory, "Stimuli_Onsets", "Mousecam_Frame_Times.npy"), allow_pickle=True)[()]
-    mousecam_frame_times = list(mousecam_frame_times.keys())
-    print("mousecam frame times", mousecam_frame_times[0:100])
-
-    plt.plot(blue_led_trace, c='b')
-    plt.plot(mousecam_trace, c='m')
-    plt.scatter(mousecam_frame_times, np.ones(len(mousecam_frame_times)))
-    plt.show()
-    """
-
-    widefield_frame_matched_motion = []
-    for widefield_frame in widefield_frame_dict.keys():
-        mousecam_frame = widefield_frame_dict[widefield_frame]
-        widefield_frame_matched_motion.append(transformed_data[mousecam_frame])
-
-    widefield_frame_matched_motion = np.array(widefield_frame_matched_motion)
-    return widefield_frame_matched_motion
-
-
-
-
-def view_face_motion_differences(base_directory, face_pixels, face_motion_data):
-
-    # Get Video Name
-    video_name = get_video_name(base_directory)
-
-    # Get Video Details
-    frameCount, image_height, image_width = get_video_details(base_directory, video_name)
-    number_of_face_pixels = np.shape(face_pixels)[0]
-    face_y_min = np.min(face_pixels[:, 0])
-    face_y_max = np.max(face_pixels[:, 0])
-    face_x_min = np.min(face_pixels[:, 1])
-    face_x_max = np.max(face_pixels[:, 1])
-
-    for frame_index in range(1, frameCount):
-
-        frame_1 = face_motion_data[frame_index]
-        template_1 = np.zeros((image_height, image_width))
-        for face_pixel_index in range(number_of_face_pixels):
-            pixel_data = frame_1[face_pixel_index]
-            pixel_position = face_pixels[face_pixel_index]
-            template_1[pixel_position[0], pixel_position[1]] = pixel_data
-
-        frame_2 = face_motion_data[frame_index-1]
-        template_2 = np.zeros((image_height, image_width))
-        for face_pixel_index in range(number_of_face_pixels):
-            pixel_data = frame_2[face_pixel_index]
-            pixel_position = face_pixels[face_pixel_index]
-            template_2[pixel_position[0], pixel_position[1]] = pixel_data
-
-        template_1 = template_1[face_y_min:face_y_max, face_x_min:face_x_max]
-        template_2 = template_2[face_y_min:face_y_max, face_x_min:face_x_max]
-        motion_energy = np.abs(np.subtract(template_2, template_1))
-
-        figure_1 = plt.figure()
-        rows = 1
-        columns = 3
-        frame_1_axis = figure_1.add_subplot(rows, columns, 1)
-        frame_2_axis = figure_1.add_subplot(rows, columns, 2)
-        motion_energy_axis = figure_1.add_subplot(rows, columns, 3)
-
-        frame_1_axis.imshow(template_1, cmap='inferno', vmin=0, vmax=255)
-        frame_2_axis.imshow(template_2, cmap='inferno', vmin=0, vmax=255)
-        motion_energy_axis.imshow(motion_energy, cmap='inferno', vmin=0, vmax=50)
-
-
-        plt.show()
-
-
-def view_face_motion(base_directory, face_pixels, face_motion_data):
-
-    # Get Video Name
-    video_name = get_video_name(base_directory)
-
-    # Get Video Details
-    frameCount, image_height, image_width = get_video_details(base_directory, video_name)
-    number_of_face_pixels = np.shape(face_pixels)[0]
-    face_y_min = np.min(face_pixels[:, 0])
-    face_y_max = np.max(face_pixels[:, 0])
-    face_x_min = np.min(face_pixels[:, 1])
-    face_x_max = np.max(face_pixels[:, 1])
-
-    motion_magnitude = np.percentile(np.abs(face_motion_data), q=99)
+    whisker_y_min = np.min(whisker_pixels[:, 0])
+    whisker_y_max = np.max(whisker_pixels[:, 0])
+    whisker_x_min = np.min(whisker_pixels[:, 1])
+    whisker_x_max = np.max(whisker_pixels[:, 1])
 
     plt.ion()
-    count =0
-    for frame in face_motion_data:
-        template = np.zeros((image_height, image_width))
-        for face_pixel_index in range(number_of_face_pixels):
-            pixel_data = frame[face_pixel_index]
-            pixel_position = face_pixels[face_pixel_index]
-            template[pixel_position[0], pixel_position[1]] = pixel_data
+    for frame_index in range(number_of_frames):
+        template = np.zeros((frame_height, frame_width))
+        for pixel_index in range(number_of_whisker_pixels):
+            pixel_value = whisker_data[frame_index, pixel_index]
+            template[whisker_pixels[pixel_index, 0], whisker_pixels[pixel_index, 1]] = pixel_value
 
-        template = template[face_y_min:face_y_max, face_x_min:face_x_max]
-
-        plt.imshow(template, cmap='inferno', vmin=0, vmax=motion_magnitude)
+        plt.imshow(template[whisker_y_min:whisker_y_max, whisker_x_min:whisker_x_max], vmin=0, vmax=50)
         plt.draw()
-        plt.title(str(count))
         plt.pause(0.1)
         plt.clf()
 
-        count += 1
+
+def match_whisker_motion_to_widefield_motion(base_directory, transformed_whisker_data):
+
+    print("Matching")
+
+    # Load Widefield To Mousecam Frame Dict
+    widefield_to_mousecam_frame_dict = np.load(os.path.join(base_directory, "Stimuli_Onsets", "widfield_to_mousecam_frame_dict.npy"), allow_pickle=True)[()]
+    widefield_frame_list = list(widefield_to_mousecam_frame_dict.keys())
+    number_of_mousecam_frames = np.shape(transformed_whisker_data)[0]
+
+    print("Widefield Frames", len(widefield_frame_list))
+    print("Mousecam Frames", number_of_mousecam_frames)
+    print("Minimum Matched Mousecam Frame", np.min(list(widefield_to_mousecam_frame_dict.values())))
+    print("Maximum Matched Mousecam Frame", np.max(list(widefield_to_mousecam_frame_dict.values())))
+    print("Transformed Whisker Data Shape", np.shape(transformed_whisker_data))
+
+    # Match Whisker Activity To Widefield Frames
+    matched_whisker_data = []
+    for widefield_frame in widefield_frame_list:
+        corresponding_mousecam_frame = widefield_to_mousecam_frame_dict[widefield_frame]
+        if corresponding_mousecam_frame < number_of_mousecam_frames:
+            matched_whisker_data.append(transformed_whisker_data[corresponding_mousecam_frame])
+        else:
+            print("unmatched, mousecam frame: ", corresponding_mousecam_frame)
+    matched_whisker_data = np.array(matched_whisker_data)
+    return matched_whisker_data
+
+
+def plot_cumulative_explained_variance(explained_variance, save_directory):
+    cumulative_variance = np.cumsum(explained_variance)
+    x_values = list(range(1, len(cumulative_variance)+1))
+    plt.title("Cumulative Explained Variance, Face Movement PCA")
+    plt.plot(x_values, cumulative_variance)
+    plt.ylim([0, 1.1])
+    plt.savefig(os.path.join(save_directory, "Face_Cumulative_Explained_Variance.png"))
+    plt.close()
+
+
+def view_bodycam_and_led_frames(base_directory):
+
+    # Load Downsampled AI
+    downsampled_ai = np.load(os.path.join(base_directory, "Downsampled_AI_Matrix_Framewise.npy"))
+
+    stimuli_dict = widefield_utils.create_stimuli_dictionary()
+
+    mousecam_trace = downsampled_ai[stimuli_dict["Mousecam"]]
+
+    plt.plot(mousecam_trace)
+    plt.show()
+
+
+def view_face_components(base_directory):
+
+    image_width = 640
+    image_height = 480
+
+    # Get Mousecam Directory
+    mousecam_directory = os.path.join(base_directory, "Mousecam_Analysis")
+
+    # Get Mousecam Components
+    mousecam_components = np.load(os.path.join(mousecam_directory, "face_motion_components.npy"))
+    print("Mousecam Components", np.shape(mousecam_components))
+    number_of_components = np.shape(mousecam_components)[0]
+
+    # Load Face Pixels
+    face_pixels = np.load(os.path.join(mousecam_directory, "Face_Pixels.npy"))
+    print("Face Pixel Shape", np.shape(face_pixels))
+    face_pixels = np.transpose(face_pixels)
+
+    # Get Face Pixel Extent
+    face_y_min = np.min(face_pixels[:, 0])
+    face_y_max = np.max(face_pixels[:, 0])
+    face_x_min = np.min(face_pixels[:, 1])
+    face_x_max = np.max(face_pixels[:, 1])
+
+    # Load Matched Mousecam Data
+    mousecam_data = np.load(os.path.join(mousecam_directory, "matched_face_data.npy"))
+    print("mousecam data shape", np.shape(mousecam_data))
+
+    # Create Figure
+    figure_1 = plt.figure(figsize=(10, 80))
+    n_rows = number_of_components
+    n_cols = 4
+    gridspec_1 = GridSpec(ncols=n_cols, nrows=n_rows, figure=figure_1)
+
+    for component_index in range(number_of_components):
+
+        # Create Axis
+        component_axis = figure_1.add_subplot(gridspec_1[component_index, 0])
+        time_loading_axis = figure_1.add_subplot(gridspec_1[component_index, 1:4])
+
+        # Create Component Image
+        component = mousecam_components[component_index]
+        component_magnitude = np.max(np.abs(component))
+        component_image = place_roi_into_mousecam(face_pixels, image_height, image_width, component)
+        component_image = component_image[face_y_min:face_y_max, face_x_min:face_x_max]
+
+        # Plot Component Image
+        component_axis.set_title("Component " + str(component_index+1).zfill(3))
+        component_axis.axis('off')
+        component_axis.imshow(component_image, cmap='seismic', vmin=-component_magnitude, vmax=component_magnitude)
+
+        # Plot Time Trace
+        time_loading_axis.plot(mousecam_data[:, component_index])
+
+    plt.savefig(os.path.join(mousecam_directory, "Mousecam_Components.png"))
+    plt.close()
+
+
+def place_roi_into_mousecam(roi_pixels, image_height, image_width, vector):
+    
+    number_pixels = np.shape(roi_pixels)[0]
+    template = np.zeros((image_height, image_width))
+
+    for pixel_index in range(number_pixels):
+        pixel_value = vector[pixel_index]
+        pixel_x = roi_pixels[pixel_index, 1]
+        pixel_y = roi_pixels[pixel_index, 0]
+        template[pixel_y, pixel_x] = pixel_value
+
+    return template
+
+
+
+def view_whisker_face_movie(mousecam_directory):
+
+    # Load Face Pixels
+    face_pixels = np.load(os.path.join(mousecam_directory, "Face_Pixels.npy"))
+
+
+
+    number_of_frames = len(whisker_data)
+    number_of_whisker_pixels = np.shape(whisker_pixels)[0]
+
+    whisker_y_min = np.min(whisker_pixels[:, 0])
+    whisker_y_max = np.max(whisker_pixels[:, 0])
+    whisker_x_min = np.min(whisker_pixels[:, 1])
+    whisker_x_max = np.max(whisker_pixels[:, 1])
+
+    plt.ion()
+    for frame_index in range(number_of_frames):
+        template = np.zeros((frame_height, frame_width))
+        for pixel_index in range(number_of_whisker_pixels):
+            pixel_value = whisker_data[frame_index, pixel_index]
+            template[whisker_pixels[pixel_index, 0], whisker_pixels[pixel_index, 1]] = pixel_value
+
+        plt.imshow(template[whisker_y_min:whisker_y_max, whisker_x_min:whisker_x_max], vmin=0, vmax=50)
+        plt.draw()
+        plt.pause(0.1)
+        plt.clf()
 
 
 def extract_face_motion(base_directory):
 
-    # Match Mousecam To Widefield frames
-    Match_Mousecam_Frames_To_Widefield_Frames.match_mousecam_to_widefield_frames(base_directory)
+    # Get Save Directory
+    save_directory = os.path.join(base_directory, "Mousecam_Analysis")
 
-    # Load Facepoly
-    face_pixels = np.load(os.path.join(base_directory, "Mousecam_analysis", "Whisker_Pixels.npy"))
+    # Load Whisker Pixels
+    face_pixels = np.load(os.path.join(base_directory, "Mousecam_Analysis", "Face_Pixels.npy"))
     face_pixels = np.transpose(face_pixels)
 
-    # Get Video Name
-    video_name = get_video_name(base_directory)
+    # Get Bodycam Filename
+    bodycam_filename = get_bodycam_filename(base_directory)
+    bodycam_file = os.path.join(base_directory, bodycam_filename)
 
-    # Get Face Data
-    face_data, image_height, image_width = get_face_data(os.path.join(base_directory, video_name), face_pixels)
+    # Get Whisker Data
+    face_data, frame_height, frame_width = get_face_data(bodycam_file, face_pixels)
+    face_data = np.ndarray.astype(face_data, float)
+    print("Face Data Shape", np.shape(face_data))
 
-    # Get Face Motion
-    face_data = np.ndarray.astype(face_data, int) # Must be converted to signed int or negative values with become extremely high positive values
-    face_data = np.diff(face_data, axis=0)
-    face_data = np.abs(face_data)
+    # Get Whisker Motion Energy
+    face_motion_energy = np.diff(face_data, axis=0)
+    face_motion_energy = np.abs(face_motion_energy)
+    print("Motion Energy Shape", np.shape(face_motion_energy))
 
-    # Match Mousecam Motion To Widefield Frames
-    widefield_frame_matched_motion = match_face_motion_to_widefield_frames(base_directory, face_data)
+    # Peform SVD on this
+    model = TruncatedSVD(n_components=20)
+    transformed_data = model.fit_transform(face_motion_energy)
+    print("Transformed Data Shape", np.shape(transformed_data))
+
+    # Get Explained Variance
+    explained_variance = model.explained_variance_ratio_
+    plot_cumulative_explained_variance(explained_variance, save_directory)
+
+    # Get Components
+    face_components = model.components_
+
+    # Match This TO Widefield Frames
+    matched_face_data = match_whisker_motion_to_widefield_motion(base_directory, transformed_data)
+    print("Matched Face Data Shape", np.shape(matched_face_data))
 
     # Save This
-    np.save(os.path.join(base_directory, "Mousecam_analysis", "Face_Motion.npy"), widefield_frame_matched_motion)
+    np.save(os.path.join(save_directory, "matched_face_data.npy"), matched_face_data)
+    np.save(os.path.join(save_directory, "face_explained_variance_ratio.npy"), explained_variance)
+    np.save(os.path.join(save_directory, "face_motion_components.npy"), face_components)
 
 
-def convert_face_pixels_to_indicies(face_pixel_list):
 
-    index_map = np.zeros(480*640)
-    index_map[:] = list(range(480*640))
+def get_video_height_width(video_filepath):
+    video_capture = cv2.VideoCapture(video_filepath)
 
-    face_pixel_index_list = []
-    index_map = np.reshape(index_map, (480, 640))
-    for face_pixel in face_pixel_list:
-        face_pixel_index = int(index_map[face_pixel[0], face_pixel[1]])
-        face_pixel_index_list.append(face_pixel_index)
-
-    return face_pixel_index_list
+    image_height = video_capture.get(cv2.CAP_PROP_FRAME_WIDTH)
+    image_width = video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    video_capture.release()
+    return image_height, image_width
 
 
-def extract_face_data_from_motion_data(base_directory):
-    print("Session", base_directory, " at ", datetime.now())
-
-    # Load Facepoly
-    face_pixels = np.load(os.path.join(base_directory, "Mousecam_analysis", "Whisker_Pixels.npy"))
-    face_pixels = np.transpose(face_pixels)
-    face_pixel_indicies = convert_face_pixels_to_indicies(face_pixels)
-    print("Face Pixel Index Shape", len(face_pixel_indicies))
-
-    # Load Motion Energy
-    motion_energy_file = os.path.join(base_directory, "Mousecam_Analysis", "Bodycam_Motion_Energy.h5")
-    motion_energy_container = tables.open_file(motion_energy_file, "r")
-    motion_energy = motion_energy_container.root["blue"]
-
-    # Get Face Motion Energy
-    face_motion_energy = motion_energy[:, face_pixel_indicies]
-    np.save(os.path.join(base_directory, "Mousecam_Analysis", "Face_Motion_Energy.npy"), face_motion_energy)
-
-    # Close FIle
-    motion_energy_container.close()
-
+selected_session_list = Session_List.control_session_tuples
+selected_session_list = [["/media/matthew/Expansion/Control_Data/NXAK22.1A/2021_09_29_Discrimination_Imaging"]]
 
 session_list = [
-        #r"/media/matthew/29D46574463D2856/Processed_New_Pipeline/NXAK7.1B/2021_03_23_Transition_Imaging",
-        #r"/media/matthew/29D46574463D2856/Processed_New_Pipeline/NXAK7.1B/2021_03_31_Transition_Imaging",
-        #r"/media/matthew/29D46574463D2856/Processed_New_Pipeline/NXAK7.1B/2021_04_02_Transition_Imaging",
+    r"/media/matthew/Expansion/Control_Data/NRXN78.1A/2020_11_14_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Control_Data/NRXN78.1A/2020_11_21_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Control_Data/NRXN78.1D/2020_11_14_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Control_Data/NRXN78.1D/2020_11_23_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Control_Data/NXAK4.1B/2021_02_04_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Control_Data/NXAK4.1B/2021_02_14_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Control_Data/NXAK7.1B/2021_02_01_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Control_Data/NXAK7.1B/2021_02_22_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Control_Data/NXAK14.1A/2021_04_29_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Control_Data/NXAK14.1A/2021_05_07_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Control_Data/NXAK22.1A/2021_09_25_Discrimination_Imaging",
+    r"/media/matthew/Expansion/Control_Data/NXAK22.1A/2021_10_07_Discrimination_Imaging"
+]
 
-        r"/media/matthew/External_Harddrive_2/Widefield_Data_New_Pipeline/Transition_Reprocessed/NXAK4.1B/2021_04_02_Transition_Imaging",
-        #r"/media/matthew/External_Harddrive_2/Widefield_Data_New_Pipeline/Transition_Reprocessed/NXAK4.1B/2021_04_08_Transition_Imaging",
-        r"/media/matthew/External_Harddrive_2/Widefield_Data_New_Pipeline/Transition_Reprocessed/NXAK4.1B/2021_04_10_Transition_Imaging",
+"""
+session_list = [
 
-        r"/media/matthew/External_Harddrive_2/Widefield_Data_New_Pipeline/Transition_Reprocessed/NXAK14.1A/2021_06_13_Transition_Imaging",
-        r"/media/matthew/External_Harddrive_2/Widefield_Data_New_Pipeline/Transition_Reprocessed/NXAK14.1A/2021_06_15_Transition_Imaging",
-        r"/media/matthew/External_Harddrive_2/Widefield_Data_New_Pipeline/Transition_Reprocessed/NXAK14.1A/2021_06_17_Transition_Imaging",
+    "/media/matthew/External_Harddrive_1/Neurexin_Data/NRXN71.2A/2020_11_14_Discrimination_Imaging",
+     "/media/matthew/External_Harddrive_1/Neurexin_Data/NRXN71.2A/2020_12_09_Discrimination_Imaging",
 
-        #r"/media/matthew/External_Harddrive_2/Widefield_Data_New_Pipeline/Transition_Reprocessed/NXAK22.1A/2021_10_29_Transition_Imaging",
-        #r"/media/matthew/External_Harddrive_2/Widefield_Data_New_Pipeline/Transition_Reprocessed/NXAK22.1A/2021_11_03_Transition_Imaging",
-        #r"/media/matthew/External_Harddrive_2/Widefield_Data_New_Pipeline/Transition_Reprocessed/NXAK22.1A/2021_11_05_Transition_Imaging"
+    "/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK4.1A/2021_02_04_Discrimination_Imaging",
+     "/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK4.1A/2021_03_05_Discrimination_Imaging",
 
+    "/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK10.1A/2021_05_02_Discrimination_Imaging",
+     "/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK10.1A/2021_05_14_Discrimination_Imaging",
+
+    "/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK16.1B/2021_05_02_Discrimination_Imaging",
+     "/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK16.1B/2021_06_15_Discrimination_Imaging",
+
+    "/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK20.1B/2021_09_30_Discrimination_Imaging",
+     "/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK20.1B/2021_10_19_Discrimination_Imaging",
+
+    "/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK24.1C/2021_09_22_Discrimination_Imaging",
+     "/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK24.1C/2021_10_08_Discrimination_Imaging",
+]
+"""
+
+session_list = ["/media/matthew/Expansion/Control_Data/NXAK22.1A/2021_09_29_Discrimination_Imaging"]
+
+session_list = [
+    r"NRXN78.1A/2020_11_28_Switching_Imaging",
+    r"NRXN78.1A/2020_12_05_Switching_Imaging",
+    r"NRXN78.1A/2020_12_09_Switching_Imaging",
+
+    r"NRXN78.1D/2020_12_07_Switching_Imaging",
+    r"NRXN78.1D/2020_11_29_Switching_Imaging",
+    r"NRXN78.1D/2020_12_05_Switching_Imaging",
+
+    r"NXAK14.1A/2021_05_21_Switching_Imaging",
+    r"NXAK14.1A/2021_05_23_Switching_Imaging",
+    r"NXAK14.1A/2021_06_11_Switching_Imaging",
+    r"NXAK14.1A/2021_06_13_Transition_Imaging",
+    r"NXAK14.1A/2021_06_15_Transition_Imaging",
+    r"NXAK14.1A/2021_06_17_Transition_Imaging",
+
+    r"NXAK22.1A/2021_10_14_Switching_Imaging",
+    r"NXAK22.1A/2021_10_20_Switching_Imaging",
+    r"NXAK22.1A/2021_10_22_Switching_Imaging",
+    r"NXAK22.1A/2021_10_29_Transition_Imaging",
+    r"NXAK22.1A/2021_11_03_Transition_Imaging",
+    r"NXAK22.1A/2021_11_05_Transition_Imaging",
+
+    r"NXAK4.1B/2021_03_02_Switching_Imaging",
+    r"NXAK4.1B/2021_03_04_Switching_Imaging",
+    r"NXAK4.1B/2021_03_06_Switching_Imaging",
+    r"NXAK4.1B/2021_04_02_Transition_Imaging",
+    r"NXAK4.1B/2021_04_08_Transition_Imaging",
+    r"NXAK4.1B/2021_04_10_Transition_Imaging",
+
+    r"NXAK7.1B/2021_02_26_Switching_Imaging",
+    r"NXAK7.1B/2021_02_28_Switching_Imaging",
+    r"NXAK7.1B/2021_03_02_Switching_Imaging",
+    r"NXAK7.1B/2021_03_23_Transition_Imaging",
+    r"NXAK7.1B/2021_03_31_Transition_Imaging",
+    r"NXAK7.1B/2021_04_02_Transition_Imaging",
+
+    r"NRXN78.1A/2020_11_14_Discrimination_Imaging",
+    r"NRXN78.1A/2020_11_15_Discrimination_Imaging",
+    r"NRXN78.1A/2020_11_24_Discrimination_Imaging",
+    r"NRXN78.1A/2020_11_21_Discrimination_Imaging",
+
+    r"NRXN78.1D/2020_11_14_Discrimination_Imaging",
+    r"NRXN78.1D/2020_11_15_Discrimination_Imaging",
+    r"NRXN78.1D/2020_11_25_Discrimination_Imaging",
+    r"NRXN78.1D/2020_11_23_Discrimination_Imaging",
+
+    r"NXAK4.1B/2021_02_04_Discrimination_Imaging",
+    r"NXAK4.1B/2021_02_06_Discrimination_Imaging",
+    r"NXAK4.1B/2021_02_22_Discrimination_Imaging",
+    r"NXAK4.1B/2021_02_14_Discrimination_Imaging",
+
+    r"NXAK7.1B/2021_02_01_Discrimination_Imaging",
+    r"NXAK7.1B/2021_02_03_Discrimination_Imaging",
+    r"NXAK7.1B/2021_02_24_Discrimination_Imaging",
+    r"NXAK7.1B/2021_02_22_Discrimination_Imaging",
+
+    r"NXAK14.1A/2021_04_29_Discrimination_Imaging",
+    r"NXAK14.1A/2021_05_01_Discrimination_Imaging",
+    r"NXAK14.1A/2021_05_09_Discrimination_Imaging",
+    r"NXAK14.1A/2021_05_07_Discrimination_Imaging",
+
+    r"NXAK22.1A/2021_09_25_Discrimination_Imaging",
+    r"NXAK22.1A/2021_09_29_Discrimination_Imaging",
+    r"NXAK22.1A/2021_10_08_Discrimination_Imaging",
+    r"NXAK22.1A/2021_10_07_Discrimination_Imaging",
+
+]
+
+full_session_list = []
+for item in session_list:
+    full_session_list.append(os.path.join("/media/matthew/Expansion/Control_Data", item))
+
+
+full_session_list = [
+
+        r"/media/matthew/External_Harddrive_1/Neurexin_Data/NRXN71.2A/2020_11_14_Discrimination_Imaging",
+        r"/media/matthew/External_Harddrive_1/Neurexin_Data/NRXN71.2A/2020_12_09_Discrimination_Imaging",
+
+        r"/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK4.1A/2021_02_04_Discrimination_Imaging",
+        r"/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK4.1A/2021_03_05_Discrimination_Imaging",
+
+        r"/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK10.1A/2021_05_02_Discrimination_Imaging",
+        r"/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK10.1A/2021_05_14_Discrimination_Imaging",
+
+        r"/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK16.1B/2021_05_02_Discrimination_Imaging",
+        r"/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK16.1B/2021_06_15_Discrimination_Imaging",
+
+        r"/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK20.1B/2021_09_30_Discrimination_Imaging",
+        r"/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK20.1B/2021_10_19_Discrimination_Imaging",
+
+        r"/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK24.1C/2021_09_22_Discrimination_Imaging",
+        r"/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK24.1C/2021_10_08_Discrimination_Imaging",
     ]
 
-for session in session_list:
-    extract_face_data_from_motion_data(session)
+for base_directory in tqdm(full_session_list):
+    print("Base directory", base_directory)
+    extract_face_motion(base_directory)
+    #view_face_components(base_directory)
+
+

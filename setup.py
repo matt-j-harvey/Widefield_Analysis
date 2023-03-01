@@ -7,4 +7,8 @@ setup(
     description='Tools for the analysis of widefield calcium imaging data',
     author='Matthew Harvey',
     packages=find_packages(),
+    package_data={'': ['*.npy']},
+    include_package_data=True,
+
 )
+

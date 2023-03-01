@@ -6,6 +6,7 @@ from skimage.feature import canny
 from skimage.filters import sobel
 import math
 from pathlib import Path
+import pkg_resources
 
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
@@ -119,11 +120,12 @@ class masking_window(QWidget):
 
 
         # Load Foot Maps
+        """
         for mouse_index in range(self.number_of_sessions):
             root_directory =  self.root_directory_list[mouse_index]
             foot_map = np.load(os.path.join(root_directory, "Limb_Map", "Foot_Map.npy"))
             self.regressor_map_list[mouse_index].append(foot_map)
-
+        """
         # Get List Of Alignment Dictionaries
         self.variable_dictionary_list = []
         for mouse_index in range(self.number_of_sessions):
@@ -437,21 +439,21 @@ def load_mouse_regressors(session_list, visualise=False):
         session_running_map = load_cpd_map(regression_dictionary, 'Running',        indicies, image_height, image_width, within_mouse_alignment_dictionary)
         session_face_map    = load_cpd_map(regression_dictionary, 'Face_Motion',    indicies, image_height, image_width, within_mouse_alignment_dictionary)
         session_whisk_map   = load_cpd_map(regression_dictionary, 'Whisking',       indicies, image_height, image_width, within_mouse_alignment_dictionary)
-        session_limbs_map   = load_cpd_map(regression_dictionary, 'Limbs',          indicies, image_height, image_width, within_mouse_alignment_dictionary)
+        #session_limbs_map   = load_cpd_map(regression_dictionary, 'Limbs',          indicies, image_height, image_width, within_mouse_alignment_dictionary)
 
         # Add To List
         mouse_lick_list.append(session_lick_map)
         mouse_running_list.append(session_running_map)
         mouse_face_list.append(session_face_map)
         mouse_whisk_list.append(session_whisk_map)
-        mouse_limbs_list.append(session_limbs_map)
+        #mouse_limbs_list.append(session_limbs_map)
 
     # Get Mean Maps
     mouse_lick_map = np.mean(mouse_lick_list, axis=0)
     mouse_running_map = np.mean(mouse_running_list, axis=0)
     mouse_face_map = np.mean(mouse_face_list, axis=0)
     mouse_whisk_map = np.mean(mouse_whisk_list, axis=0)
-    mouse_limbs_map = np.mean(mouse_limbs_list, axis=0)
+    #mouse_limbs_map = np.mean(mouse_limbs_list, axis=0)
 
     # Get edges
     """
@@ -468,13 +470,13 @@ def load_mouse_regressors(session_list, visualise=False):
     mouse_running_map = np.divide(mouse_running_map, np.percentile(mouse_running_map, q=percentile_threshold))
     mouse_face_map = np.divide(mouse_face_map, np.percentile(mouse_face_map, q=percentile_threshold))
     mouse_whisk_map = np.divide(mouse_whisk_map, np.percentile(mouse_whisk_map, q=percentile_threshold))
-    mouse_limbs_map = np.divide(mouse_limbs_map, np.percentile(mouse_limbs_map, q=percentile_threshold))
+    #mouse_limbs_map = np.divide(mouse_limbs_map, np.percentile(mouse_limbs_map, q=percentile_threshold))
 
     mouse_lick_map = np.clip(mouse_lick_map,  a_min=0, a_max=1)
     mouse_running_map = np.clip(mouse_running_map,  a_min=0, a_max=1)
     mouse_face_map = np.clip(mouse_face_map,  a_min=0, a_max=1)
     mouse_whisk_map = np.clip(mouse_whisk_map,  a_min=0, a_max=1)
-    mouse_limbs_map = np.clip(mouse_limbs_map, a_min=0, a_max=1)
+    #mouse_limbs_map = np.clip(mouse_limbs_map, a_min=0, a_max=1)
 
     # view These
     if visualise == True:
@@ -486,27 +488,30 @@ def load_mouse_regressors(session_list, visualise=False):
         running_axis = figure_1.add_subplot(rows, columns, 2)
         face_axis = figure_1.add_subplot(rows, columns, 3)
         whisk_axis = figure_1.add_subplot(rows, columns, 4)
-        limbs_axis = figure_1.add_subplot(rows, columns, 5)
+        #limbs_axis = figure_1.add_subplot(rows, columns, 5)
     
         lick_axis.imshow(mouse_lick_map)
         running_axis.imshow(mouse_running_map)
         face_axis.imshow(mouse_face_map)
         whisk_axis.imshow(mouse_whisk_map)
-        limbs_axis.imshow(mouse_limbs_map)
+        #limbs_axis.imshow(mouse_limbs_map)
     
         plt.show()
         
-    regressor_map_list = [mouse_lick_map, mouse_running_map, mouse_face_map, mouse_whisk_map, mouse_limbs_map]
+    regressor_map_list = [mouse_lick_map, mouse_running_map, mouse_face_map, mouse_whisk_map] #, mouse_limbs_map]
     
     return regressor_map_list
+
 
 def load_atlas():
 
     # Load Atlas Boundaires
-    allen_atlas_boundaries = np.load(r"/home/matthew/Documents/Github_Code_Clean/Transition_Analysis/Brain_Registration/Atlas_Outlines.npy")
+    allen_atlas_boundaries_file = pkg_resources.resource_stream('Files', 'Atlas_Outlines.npy')
+    allen_atlas_boundaries = np.load(allen_atlas_boundaries_file)
 
     # Load Atlas ALignment Dict
-    atlas_alignment_dictionary = np.load(r"/home/matthew/Documents/Github_Code_Clean/Transition_Analysis/Brain_Registration/Atlas_Alignment_Dictionary.npy", allow_pickle=True)[()]
+    atlas_alignment_dictionary_file = pkg_resources.resource_stream('Files', 'Atlas_Alignment_Dictionary.npy')
+    atlas_alignment_dictionary = np.load(atlas_alignment_dictionary_file, allow_pickle=True)[()]
 
     # Align Atlas
     allen_atlas_boundaries = Registration_Utils.transform_mask_or_atlas(allen_atlas_boundaries, atlas_alignment_dictionary)
@@ -526,6 +531,8 @@ def align_sessions(session_list):
 
 
 mouse_list = [
+
+    [r"/media/matthew/External_Harddrive_2/Widefield_Data_New_Pipeline/Switching_Opto/KPGC2.2G/2022_12_02_Switching_Opto"],
 
     [r"/media/matthew/External_Harddrive_1/Neurexin_Data/NRXN71.2A/2020_12_13_Switching_Imaging",
     r"/media/matthew/External_Harddrive_1/Neurexin_Data/NRXN71.2A/2020_12_15_Switching_Imaging",
@@ -599,7 +606,6 @@ mouse_list = [
     r"/media/matthew/Expansion/Control_Data/NXAK7.1B/2021_03_31_Transition_Imaging",
     r"/media/matthew/Expansion/Control_Data/NXAK7.1B/2021_04_02_Transition_Imaging"],
 
-
 ]
 
 #r"/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK16.1B/2021_07_26_Continous_Retinotopy_Left",
@@ -607,6 +613,8 @@ mouse_list = [
 #r"/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK20.1B/2021_09_01_Continous_Retinotopy_Left",
 #r"/media/matthew/External_Harddrive_1/Neurexin_Data/NXAK24.1C/2021_09_01_Continous_Retinotopy_Left",
 #r"/media/matthew/Expansion/Control_Data/NXAK14.1A/Continous_Retinotopic_Mapping_Left"
+
+
 
 #load_mouse_regressors(mouse_list[3])
 load_atlas()

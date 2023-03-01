@@ -35,3 +35,4 @@ def get_example_images(base_directory, output_directory, default_position=10000)
     motion_corrected_data_container.close()
 
 
+e_directory, base_directory)

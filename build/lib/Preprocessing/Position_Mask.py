@@ -360,7 +360,7 @@ class masking_window(QWidget):
         self.select_next_session()
 
 
-
+"""
 def position_mask(session_directory_list, output_directory_list):
 
     app = QApplication(sys.argv)
@@ -371,3 +371,4 @@ def position_mask(session_directory_list, output_directory_list):
     app.exec_()
 
 
+"""

@@ -21,7 +21,7 @@ import h5py
 from tqdm import tqdm
 
 import Transition_Utils
-
+from Files import Session_List
 
 def get_trial_stop(trial_start, stop_trace, trace_threshold, max_length=140):
 
@@ -319,21 +319,14 @@ def create_extended_standard_alignment_tensor(base_directory, tensor_save_direct
 
 
 # Load Session List
-mouse_list = ["NRXN78.1D", "NXAK4.1B", "NXAK7.1B", "NXAK14.1A", "NXAK22.1A"]
-mouse_list = ["NRXN71.2A", "NXAK4.1A", "NXAK10.1A",  "NXAK16.1B", "NXAK24.1C", "NXAK20.1B"]
-
-session_type = "Transition"
-session_list = []
-for mouse_name in mouse_list:
-    session_list = session_list + Transition_Utils.load_mouse_sessions(mouse_name, session_type)
-
+selected_session_list = Session_List.mutant_transition_sessions
 
 # Load Analysis Details
-analysis_name = "Perfect_v_Imperfect_Switches"
+analysis_name = "Absence Of Expected Odour"
 [start_window, stop_window, onset_files, tensor_names, behaviour_traces, difference_conditions] = Transition_Utils.load_analysis_container(analysis_name)
 
 # Create Activity Tensors
-tensor_save_directory = "/media/matthew/Expansion/Widefield_Analysis/Extended_Tensors"
+tensor_save_directory = "//media/matthew/External_Harddrive_1/Neurexin_Transition_Analysis"
 stop_stimuli_list = [["Odour 1", "Odour 2", "Visual 1", "Visual 2"], ["Odour 1", "Odour 2", "Visual 1", "Visual 2"]]
 
 for base_directory in tqdm(session_list):
@@ -342,24 +335,3 @@ for base_directory in tqdm(session_list):
         stop_stimuli = stop_stimuli_list[condition_index]
         create_extended_standard_alignment_tensor(base_directory, tensor_save_directory, onsets_file, start_window, stop_stimuli, behaviour_traces)
         condition_index += 1
-
-
-
-"""
-# Load Analysis Details
-analysis_name = "Absence Of Expected Odour"
-[start_window, stop_window, onset_files, tensor_names, behaviour_traces, difference_conditions] = Transition_Utils.load_analysis_container(analysis_name)
-
-
-# Create Activity Tensors
-tensor_save_directory = "/media/matthew/Expansion/Widefield_Analysis/Extended_Tensors"
-stop_stimuli_list = [["Odour 1", "Visual 1", "Visual 2"], ["Odour 1", "Odour 2", "Visual 1", "Visual 2"], ["Odour 1", "Odour 2", "Visual 1", "Visual 2"]]
-
-
-for base_directory in tqdm(session_list):
-    condition_index = 0
-    for onsets_file in onset_files:
-        stop_stimuli = stop_stimuli_list[condition_index]
-        create_extended_standard_alignment_tensor(base_directory, tensor_save_directory, onsets_file, start_window, stop_stimuli, behaviour_traces)
-        condition_index += 1
-"""

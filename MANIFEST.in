@@ -1,0 +1,5 @@
+include Files/Atlas_Alignment_Dictionary.npy
+include Files/Atlas_Outlines.npy
+include Files/Tight_Mask_Alignment_Dict.npy
+include Files/Tight_Mask_Dict.npy
+

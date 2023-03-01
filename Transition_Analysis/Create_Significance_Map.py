@@ -148,7 +148,6 @@ def view_signficance_maps(save_folder):
     average_period_frames = []
 
 
-
     for timepoint_index in range(number_of_timepoints):
 
         comparison_1_axis = figure_1.add_subplot(gridspec_1[0, 0])

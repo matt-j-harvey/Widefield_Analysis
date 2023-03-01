@@ -8,7 +8,11 @@ import Motion_Correction
 import matplotlib.pyplot as plt
 import numpy as np
 import h5py
+import sys
 
+from PyQt5.QtWidgets import *
+from PyQt5.QtGui import *
+from PyQt5.QtCore import *
 
 
 
@@ -81,39 +85,59 @@ def get_motion_corrected_data_filename(base_directory):
             return file
 
 
-"""
-1.) Get Max Projection
-2.) Assign Generous Mask
-3.) Motion Correction
-"""
 
-session_list = ["/media/matthew/External_Harddrive_3/Opto_Test/KPGC2.2H/2022_11_14_Opto_Test_Filter"]
 
-number_of_sessions = len(session_list)
+def run_motion_correction_pipeline(session_list):
 
-"""
-# Check LED Colors
-for base_directory in session_list:
-    check_led_colours(base_directory)
+    """
+    1.) Get Max Projection
+    2.) Assign Generous Mask
+    3.) Motion Correction
+    """
 
-# Get Max Projections
-for session_index in range(number_of_sessions):
-    base_directory = session_list[session_index]
-    Get_Max_Projection.check_max_projection(base_directory, base_directory)
 
-# Assign Masks
-Position_Mask.position_mask(session_list, session_list)
+    # Create QApplication
+    app = QApplication(sys.argv)
 
-"""
+    # Get Number Of Session
+    number_of_sessions = len(session_list)
 
-# Process Data
-for session_index in range(number_of_sessions):
+    """
+    # Check LED Colors
+    for base_directory in session_list:
+        check_led_colours(base_directory)
 
-    base_directory = session_list[session_index]
-    print("Session ", session_index, " of ", number_of_sessions, base_directory)
 
-    # Perform Motion Correction
-    print("Performing Motion Correction", datetime.now())
-    Motion_Correction.perform_motion_correction(base_directory, base_directory)
+    # Get Max Projections
+    for session_index in range(number_of_sessions):
+        base_directory = session_list[session_index]
+        Get_Max_Projection.check_max_projection(base_directory, base_directory)
 
+    # Assign Masks
+    window = Position_Mask.masking_window(session_list, session_list)
+    window.show()
+    app.exec_()
+    """
+    # Process Data
+    for session_index in range(number_of_sessions):
+        base_directory = session_list[session_index]
+        print("Session ", session_index, " of ", number_of_sessions, base_directory)
+
+        # Perform Motion Correction
+        print("Performing Motion Correction", datetime.now())
+        Motion_Correction.perform_motion_correction(base_directory, base_directory)
+
+
+
+
+
+session_list = [
+                #r"/media/matthew/Expansion/Control_Data/NRXN78.1A/2020_11_02_Spontaneous",
+                r"/media/matthew/Expansion/Control_Data/NXAK4.1B/2021_01_25_Spontaneous",
+                r"/media/matthew/Expansion/Control_Data/NXAK7.1B/2021_01_25_Spontaneous",
+                r"/media/matthew/Expansion/Control_Data/NXAK14.1A/2021_04_21_Spontaneous",
+                r"/media/matthew/Expansion/Control_Data/NRXN78.1D/2020_11_02_Spontaneous",
+                ]
+
+run_motion_correction_pipeline(session_list)
 

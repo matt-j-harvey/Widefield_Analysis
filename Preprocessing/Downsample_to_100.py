@@ -6,6 +6,7 @@ import os
 from skimage.transform import downscale_local_mean, resize
 from tqdm import tqdm
 
+from Files import Session_List
 import Preprocessing_Utils
 
 
@@ -77,9 +78,6 @@ def downsample_to_100(base_directory, output_directory):
     downsampled_data = np.array(downsampled_data)
     np.save(os.path.join(base_directory, "100_By_100_Data.npy"), downsampled_data)
 
-session_list = ["/media/matthew/External_Harddrive_2/Widefield_Data_New_Pipeline/Control_Data/NRXN78.1A/2020_11_28_Switching_Imaging",
-                "/media/matthew/External_Harddrive_2/Widefield_Data_New_Pipeline/Control_Data/NRXN78.1A/2020_12_05_Switching_Imaging",
-                "/media/matthew/External_Harddrive_2/Widefield_Data_New_Pipeline/Control_Data/NRXN78.1A/2020_12_09_Switching_Imaging"]
-
-for base_directory in session_list:
+selected_session_list = Session_List.mutant_transition_sessions
+for base_directory in selected_session_list:
     downsample_to_100(base_directory, base_directory)
